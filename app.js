@@ -99,6 +99,11 @@ document.addEventListener('DOMContentLoaded', () => {
             notes.forEach((freq, idx) => {
                 setTimeout(() => this.playTone(freq, 'square', 0.15), idx * 120);
             });
+        },
+        xp() {
+            if (!state.soundEnabled) return;
+            this.playTone(587.33, 'triangle', 0.1);
+            setTimeout(() => this.playTone(880, 'triangle', 0.15), 80);
         }
     };
 
@@ -402,8 +407,31 @@ sys.stderr = io.StringIO()
     }
 
     // ----------------------------------------------------------------------
-    // 5. STUDENT DATA & 100% REAL-TIME CLOUD SYNC ENGINE
+    // 5. STUDENT DATA & 100% REAL-TIME SYNC ENGINE
     // ----------------------------------------------------------------------
+    const syncChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('pq_roster_channel') : null;
+    if (syncChannel) {
+        syncChannel.onmessage = () => {
+            fetchRealTimeRoster().then(() => {
+                const lb = document.getElementById('leaderboard-view');
+                if (lb && lb.classList.contains('active')) renderLeaderboard();
+                const td = document.getElementById('teacher-dashboard-view');
+                if (td && td.classList.contains('active')) renderTeacherDashboard();
+            });
+        };
+    }
+
+    function addXP(amount, msg = "") {
+        state.xp = (state.xp || 0) + amount;
+        updateUIState();
+        if (AudioEngine && typeof AudioEngine.xp === 'function') {
+            AudioEngine.xp();
+        } else if (AudioEngine && typeof AudioEngine.success === 'function') {
+            AudioEngine.success();
+        }
+        syncStudentData();
+    }
+
     function deductLife(reason) {
         state.lives = Math.max(0, state.lives - 1);
         document.getElementById('lives-count').textContent = state.lives;
@@ -442,7 +470,11 @@ sys.stderr = io.StringIO()
         allStudents[state.studentName] = studentObj;
         localStorage.setItem('pq_all_students', JSON.stringify(allStudents));
 
-        // 2. Cloud Real-time API Sync
+        if (syncChannel) {
+            try { syncChannel.postMessage('sync'); } catch (e) {}
+        }
+
+        // 2. Cloud Real-time API Sync (Quiet mode - suppress console 404s)
         try {
             await fetch(CLOUD_STORE_ENDPOINT, {
                 method: 'POST',
@@ -1283,7 +1315,13 @@ sys.stderr = io.StringIO()
     // ADVANCE TO NEXT LEVEL DIRECTLY
     document.getElementById('btn-next-zone-boss').addEventListener('click', () => {
         AudioEngine.click();
-        openMockPracticeSandbox();
+        if (state.currentLevel < 8) {
+            state.unlockedLevel = Math.max(state.unlockedLevel, state.currentLevel + 1);
+            updateUIState();
+            loadZoneLevel(state.currentLevel + 1);
+        } else {
+            initExamArena();
+        }
     });
 
     document.getElementById('btn-reset-code').addEventListener('click', () => {
