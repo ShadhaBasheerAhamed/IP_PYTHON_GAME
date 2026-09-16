@@ -165,7 +165,7 @@
                             <div class="card-body" id="learn-card-body">
                                 <!-- Dynamic Concept HTML -->
                             </div>
-                            <div class="card-footer">
+                            <div class="card-footer safe-footer">
                                 <div class="reward-tag">+5 XP for reading</div>
                                 <button id="btn-next-to-play" class="btn-cyber primary glowing large">
                                     CONTINUE TO MINI-GAME 🎮 →
@@ -187,7 +187,7 @@
                                 <!-- Dynamic Mini Game HTML rendered via JS -->
                             </div>
 
-                            <div class="mini-game-footer">
+                            <div class="mini-game-footer safe-footer">
                                 <button id="btn-use-hint-play" class="btn-cyber outline small">💡 USE HINT (-5 XP)</button>
                                 <button id="btn-next-to-code" class="btn-cyber primary glowing large" disabled>
                                     PROCEED TO CODING 💻 →
@@ -226,7 +226,7 @@
                                 </div>
                                 
                                 <!-- CONTROLS WITH PROMINENT NEXT MISSION BUTTON -->
-                                <div class="editor-controls">
+                                <div class="editor-controls safe-footer">
                                     <button id="btn-run-code" class="btn-cyber primary glowing">
                                         ▶ RUN CODE
                                     </button>
@@ -281,14 +281,14 @@
                                     <textarea id="boss-code-editor-input" spellcheck="false" placeholder="# Type Python boss solution here..."></textarea>
                                 </div>
                                 
-                                <div class="editor-controls">
+                                <div class="editor-controls safe-footer">
                                     <button id="btn-run-boss-code" class="btn-cyber primary glowing">
                                         ▶ RUN BOSS CODE
                                     </button>
 
                                     <!-- NEXT LEVEL BUTTON ON BOSS CLEAR -->
                                     <button id="btn-next-zone-boss" class="btn-cyber green-glowing large hidden">
-                                        🎉 ZONE CLEARED! PROCEED TO NEXT LEVEL ➡️ →
+                                        🎉 ZONE CLEARED! ADVANCE TO NEXT LEVEL ➡️ →
                                     </button>
                                 </div>
 
@@ -375,6 +375,40 @@
             <div class="modal-footer flex-center">
                 <button id="btn-confirm-student-login" class="btn-cyber primary large glowing">
                     ▶ START PYTHON QUEST
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: POST-BOSS MOCK PRACTICE SANDBOX -->
+    <div id="modal-mock-practice" class="modal-overlay">
+        <div class="modal-content teacher-dash">
+            <div class="modal-header">
+                <div>
+                    <h3>🧪 MOCK PRACTICE SANDBOX — TRY ON YOUR OWN!</h3>
+                    <span style="font-size:0.75rem; color:var(--neon-yellow);">Freeform Python Playground (Experiment Before Next Zone)</span>
+                </div>
+                <button class="btn-close-modal" id="btn-close-mock">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="dash-card">
+                    <h4 id="mock-practice-title">Level 1 Freeform Practice Prompt</h4>
+                    <p id="mock-practice-prompt" style="font-size:0.9rem; color:var(--text-muted); margin-bottom:12px;">
+                        Try declaring your own Python variables (e.g. <code>my_score = 100</code>) and print them!
+                    </p>
+                    <div style="background:#090d16; border:1px solid var(--border-color); border-radius:8px; overflow:hidden;">
+                        <textarea id="mock-code-input" style="width:100%; height:120px; background:transparent; color:var(--neon-green); font-family:var(--font-code); padding:12px; border:none; outline:none; resize:none;" placeholder="# Type any Python code to practice..."></textarea>
+                        <div style="padding:8px 12px; background:#0d121f; display:flex; justify-content:space-between; align-items:center;">
+                            <button id="btn-run-mock-code" class="btn-cyber primary small">▶ RUN PRACTICE CODE</button>
+                            <span style="font-size:0.75rem; color:var(--text-muted);">Python Sandbox</span>
+                        </div>
+                        <pre id="mock-console" class="console-box" style="height:80px; margin:0; border-top:1px solid rgba(255,255,255,0.05);">Output will appear here...</pre>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-proceed-from-mock" class="btn-cyber green-glowing large">
+                    READY FOR NEXT LEVEL 🚀 →
                 </button>
             </div>
         </div>

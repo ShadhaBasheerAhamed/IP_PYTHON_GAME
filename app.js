@@ -41,6 +41,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // Real-Time Cloud Store Key
     const CLOUD_STORE_ENDPOINT = 'https://kvdb.io/PythonQuest_Class_2026/students_roster';
 
+    // Practice Prompts for Mock Sandbox after each level
+    const MOCK_PRACTICE_PROMPTS = {
+        1: { title: "Zone 1 Freeform Identifier Practice", prompt: "Try declaring <code>my_score = 100</code> and print <code>my_score * 2</code>!" },
+        2: { title: "Zone 2 Freeform Operator Practice", prompt: "Try computing integer floor division <code>25 // 4</code> and modulus <code>25 % 4</code>!" },
+        3: { title: "Zone 3 Freeform List & Slicing Practice", prompt: "Create a list <code>colors = ['red', 'green', 'blue', 'yellow']</code> and print <code>colors[1:3]</code>!" },
+        4: { title: "Zone 4 Freeform Loop Practice", prompt: "Write a <code>for i in range(1, 10, 2):</code> loop to print odd numbers!" },
+        5: { title: "Zone 5 Freeform Decision Practice", prompt: "Write an <code>if/else</code> check for <code>score = 85</code>!" },
+        6: { title: "Zone 6 Freeform Dictionary Practice", prompt: "Create <code>car = {'brand': 'Ford', 'year': 2024}</code> and print <code>car.keys()</code>!" },
+        7: { title: "Zone 7 Freeform Algorithm Practice", prompt: "Try counting total words in a string!" }
+    };
+
     // ----------------------------------------------------------------------
     // 2. WEB AUDIO SYNTHESIZER
     // ----------------------------------------------------------------------
@@ -317,11 +328,13 @@ Neg:    [-5]  [-4]  [-3]  [-2]  [-1]</pre>
         }
     }
 
-    async function executePythonCode(code, isBoss = false) {
-        const consoleEl = isBoss ? document.getElementById('boss-terminal-console') : document.getElementById('terminal-console');
+    async function executePythonCode(code, isBoss = false, targetConsoleId = null) {
+        const consoleEl = targetConsoleId ? document.getElementById(targetConsoleId) : (isBoss ? document.getElementById('boss-terminal-console') : document.getElementById('terminal-console'));
         const errorBtn = document.getElementById('btn-why-error');
-        consoleEl.className = "console-box";
-        consoleEl.textContent = "Executing code...";
+        if (consoleEl) {
+            consoleEl.className = "console-box";
+            consoleEl.textContent = "Executing code...";
+        }
         if (errorBtn && !isBoss) errorBtn.classList.add('hidden');
 
         if (state.pyodide) {
@@ -337,22 +350,28 @@ sys.stderr = io.StringIO()
                 let stderr = state.pyodide.runPython("sys.stderr.getvalue()");
 
                 if (stderr && stderr.trim()) {
-                    consoleEl.className = "console-box error";
-                    consoleEl.textContent = stderr.trim();
+                    if (consoleEl) {
+                        consoleEl.className = "console-box error";
+                        consoleEl.textContent = stderr.trim();
+                    }
                     state.lastErrorMsg = stderr.trim();
                     if (errorBtn && !isBoss) errorBtn.classList.remove('hidden');
                     deductLife(`Syntax/Runtime Error: ${stderr.trim()}`);
                     AudioEngine.error();
                     return { success: false, output: stderr.trim() };
                 } else {
-                    consoleEl.className = "console-box success";
-                    consoleEl.textContent = stdout.trim() || "[Code executed with no output]";
+                    if (consoleEl) {
+                        consoleEl.className = "console-box success";
+                        consoleEl.textContent = stdout.trim() || "[Code executed with no output]";
+                    }
                     AudioEngine.success();
                     return { success: true, output: stdout.trim() };
                 }
             } catch (err) {
-                consoleEl.className = "console-box error";
-                consoleEl.textContent = err.message;
+                if (consoleEl) {
+                    consoleEl.className = "console-box error";
+                    consoleEl.textContent = err.message;
+                }
                 state.lastErrorMsg = err.message;
                 if (errorBtn && !isBoss) errorBtn.classList.remove('hidden');
                 deductLife(`Error: ${err.message}`);
@@ -362,13 +381,17 @@ sys.stderr = io.StringIO()
         } else {
             let res = runJsPythonFallback(code);
             if (res.success) {
-                consoleEl.className = "console-box success";
-                consoleEl.textContent = res.output;
+                if (consoleEl) {
+                    consoleEl.className = "console-box success";
+                    consoleEl.textContent = res.output;
+                }
                 AudioEngine.success();
                 return { success: true, output: res.output };
             } else {
-                consoleEl.className = "console-box error";
-                consoleEl.textContent = res.error;
+                if (consoleEl) {
+                    consoleEl.className = "console-box error";
+                    consoleEl.textContent = res.error;
+                }
                 state.lastErrorMsg = res.error;
                 if (errorBtn && !isBoss) errorBtn.classList.remove('hidden');
                 deductLife(`JS Fallback Error: ${res.error}`);
@@ -953,7 +976,41 @@ sys.stderr = io.StringIO()
     });
 
     // ----------------------------------------------------------------------
-    // 10. EXAM ARENA ENGINE (LEVEL 8)
+    // 10. MOCK PRACTICE SANDBOX ENGINE
+    // ----------------------------------------------------------------------
+    function openMockPracticeSandbox() {
+        const modal = document.getElementById('modal-mock-practice');
+        const pData = MOCK_PRACTICE_PROMPTS[state.currentLevel] || {
+            title: `Zone ${state.currentLevel} Practice Sandbox`,
+            prompt: "Try typing any Python code to practice!"
+        };
+        document.getElementById('mock-practice-title').textContent = pData.title;
+        document.getElementById('mock-practice-prompt').innerHTML = pData.prompt;
+        document.getElementById('mock-console').textContent = "Click 'RUN PRACTICE CODE' to see output...";
+        document.getElementById('mock-code-input').value = "";
+        modal.classList.add('active');
+    }
+
+    document.getElementById('btn-close-mock').addEventListener('click', () => {
+        document.getElementById('modal-mock-practice').classList.remove('active');
+    });
+
+    document.getElementById('btn-run-mock-code').addEventListener('click', async () => {
+        const code = document.getElementById('mock-code-input').value;
+        if (!code.trim()) return;
+        await executePythonCode(code, false, 'mock-console');
+    });
+
+    document.getElementById('btn-proceed-from-mock').addEventListener('click', () => {
+        document.getElementById('modal-mock-practice').classList.remove('active');
+        state.unlockedLevel = Math.max(state.unlockedLevel, state.currentLevel + 1);
+        state.currentLevel = Math.min(8, state.currentLevel + 1);
+        updateUIState();
+        loadZoneLevel(state.currentLevel);
+    });
+
+    // ----------------------------------------------------------------------
+    // 11. EXAM ARENA ENGINE (LEVEL 8)
     // ----------------------------------------------------------------------
     const EXAM_QUESTIONS = {
         A: [
@@ -1059,7 +1116,7 @@ sys.stderr = io.StringIO()
     }
 
     // ----------------------------------------------------------------------
-    // 11. DIAGNOSTIC MODAL & CHEAT CARDS
+    // 12. DIAGNOSTIC MODAL & CHEAT CARDS
     // ----------------------------------------------------------------------
     document.getElementById('btn-why-error').addEventListener('click', () => {
         AudioEngine.click();
@@ -1127,7 +1184,7 @@ sys.stderr = io.StringIO()
     }
 
     // ----------------------------------------------------------------------
-    // 12. PROCTORING ANTI-CHEAT & NAVIGATION
+    // 13. PROCTORING & STAGE CONTROLS
     // ----------------------------------------------------------------------
     const proctorBtn = document.getElementById('btn-proctor-toggle');
     proctorBtn.addEventListener('click', () => {
@@ -1193,7 +1250,6 @@ sys.stderr = io.StringIO()
             const nextBtn = document.getElementById('btn-next-stage-code');
             nextBtn.classList.remove('hidden');
             nextBtn.classList.add('glowing');
-            alert("🎉 MISSION CLEAR! Click 'PROCEED TO BOSS 👹' to fight the Boss!");
         }
     });
 
@@ -1203,7 +1259,7 @@ sys.stderr = io.StringIO()
         setMissionStage('boss');
     });
 
-    // BOSS STAGE EXECUTION
+    // BOSS STAGE EXECUTION & SEAMLESS NEXT LEVEL TRANSITION
     document.getElementById('btn-run-boss-code').addEventListener('click', async () => {
         AudioEngine.click();
         const code = document.getElementById('boss-code-editor-input').value;
@@ -1214,29 +1270,20 @@ sys.stderr = io.StringIO()
         if (result.success && result.output.trim() === lData.boss.expectedOutput.trim()) {
             addXP(100, "Zone Boss Defeated!");
             AudioEngine.success();
+
             const nextZoneBtn = document.getElementById('btn-next-zone-boss');
             nextZoneBtn.classList.remove('hidden');
             nextZoneBtn.classList.add('glowing');
-            if (state.unlockedLevel === state.currentLevel) {
-                state.unlockedLevel = Math.min(8, state.unlockedLevel + 1);
-            }
-            updateUIState();
-            alert(`👑 ZONE ${state.currentLevel} BOSS DEFEATED! +100 XP! Click 'PROCEED TO NEXT LEVEL ➡️'!`);
+
+            // Open Mock Sandbox Playground for students to experiment
+            openMockPracticeSandbox();
         }
     });
 
-    // PROCEED TO NEXT LEVEL BUTTON
+    // ADVANCE TO NEXT LEVEL DIRECTLY
     document.getElementById('btn-next-zone-boss').addEventListener('click', () => {
         AudioEngine.click();
-        if (state.unlockedLevel === state.currentLevel) {
-            state.unlockedLevel = Math.min(8, state.unlockedLevel + 1);
-        }
-        updateUIState();
-        if (state.currentLevel < 8) {
-            loadZoneLevel(state.currentLevel + 1);
-        } else {
-            switchViewPanel('map-overview-view');
-        }
+        openMockPracticeSandbox();
     });
 
     document.getElementById('btn-reset-code').addEventListener('click', () => {
