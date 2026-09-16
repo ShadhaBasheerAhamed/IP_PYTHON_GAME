@@ -26,7 +26,7 @@
 
             <!-- PLAYER XP & STATUS -->
             <div class="player-stats">
-                <div class="student-profile-chip" id="btn-change-student-name" title="Click to Change Student Profile">
+                <div class="student-profile-chip locked-profile" id="student-profile-chip" title="Active Student Profile">
                     <span class="avatar-icon">🧑‍🎓</span>
                     <span class="student-name-display" id="student-name-tag">Select Name</span>
                 </div>
@@ -133,22 +133,22 @@
                         
                         <!-- MISSION PIPELINE STEPPER -->
                         <div class="mission-stepper">
-                            <div class="step-node active" id="step-learn">
+                            <div class="step-node active" id="step-learn" title="Step 1: Learn Concept">
                                 <span class="step-num">1</span>
                                 <span class="step-label">📖 LEARN</span>
                             </div>
                             <div class="step-line"></div>
-                            <div class="step-node" id="step-play">
+                            <div class="step-node" id="step-play" title="Step 2: Mini-Game">
                                 <span class="step-num">2</span>
                                 <span class="step-label">🎮 PLAY</span>
                             </div>
                             <div class="step-line"></div>
-                            <div class="step-node" id="step-code">
+                            <div class="step-node" id="step-code" title="Step 3: Coding Mission">
                                 <span class="step-num">3</span>
                                 <span class="step-label">💻 CODE</span>
                             </div>
                             <div class="step-line"></div>
-                            <div class="step-node" id="step-boss">
+                            <div class="step-node" id="step-boss" title="Step 4: Zone Boss">
                                 <span class="step-num">4</span>
                                 <span class="step-label">👹 BOSS</span>
                             </div>
@@ -167,7 +167,7 @@
                             </div>
                             <div class="card-footer">
                                 <div class="reward-tag">+5 XP for reading</div>
-                                <button id="btn-next-to-play" class="btn-cyber primary">
+                                <button id="btn-next-to-play" class="btn-cyber primary glowing large">
                                     CONTINUE TO MINI-GAME 🎮 →
                                 </button>
                             </div>
@@ -189,7 +189,7 @@
 
                             <div class="mini-game-footer">
                                 <button id="btn-use-hint-play" class="btn-cyber outline small">💡 USE HINT (-5 XP)</button>
-                                <button id="btn-next-to-code" class="btn-cyber primary" disabled>
+                                <button id="btn-next-to-code" class="btn-cyber primary glowing large" disabled>
                                     PROCEED TO CODING 💻 →
                                 </button>
                             </div>
@@ -224,14 +224,23 @@
                                     <div class="line-numbers" id="line-numbers">1</div>
                                     <textarea id="code-editor-input" spellcheck="false" placeholder="# Type Python code here..."></textarea>
                                 </div>
+                                
+                                <!-- CONTROLS WITH PROMINENT NEXT MISSION BUTTON -->
                                 <div class="editor-controls">
                                     <button id="btn-run-code" class="btn-cyber primary glowing">
                                         ▶ RUN CODE
                                     </button>
+
+                                    <!-- PROCEED TO BOSS BUTTON -->
+                                    <button id="btn-next-stage-code" class="btn-cyber green-glowing large">
+                                        PROCEED TO BOSS 👹 →
+                                    </button>
+
                                     <button id="btn-why-error" class="btn-cyber danger outline hidden">
                                         ❓ WHY DID I GET THIS ERROR?
                                     </button>
                                 </div>
+
                                 <div class="terminal-output-panel">
                                     <div class="terminal-header">
                                         <span>TERMINAL OUTPUT</span>
@@ -243,19 +252,53 @@
                         </div>
                     </div>
 
-                    <!-- STEP 4: BOSS (CHALLENGE) -->
+                    <!-- STEP 4: BOSS (CHALLENGE TERMINAL & NEXT LEVEL BUTTON) -->
                     <div id="stage-boss" class="stage-container">
-                        <div class="boss-arena-card">
-                            <div class="boss-header">
-                                <span class="boss-tag">👹 ZONE BOSS CHALLENGE</span>
-                                <h3 id="boss-challenge-title">The Pattern Overlord</h3>
-                                <div class="boss-hp-bar">
-                                    <div class="boss-hp-fill" id="boss-hp-fill" style="width: 100%;"></div>
+                        <div class="code-mission-layout">
+                            <div class="mission-briefing boss-briefing">
+                                <div class="briefing-header">
+                                    <span class="boss-tag">👹 ZONE BOSS CHALLENGE</span>
+                                    <h3 id="boss-challenge-title">The Pattern Overlord</h3>
+                                </div>
+                                <div class="briefing-body" id="boss-mission-desc">
+                                    <!-- Boss instructions -->
+                                </div>
+                                <div class="briefing-footer">
+                                    <div class="mission-reward">+100 XP</div>
+                                    <button id="btn-use-hint-boss" class="btn-cyber outline small">💡 NEED A HINT?</button>
                                 </div>
                             </div>
 
-                            <div class="boss-content" id="boss-content">
-                                <!-- Boss Code Editor / Complex Challenge -->
+                            <div class="terminal-editor-container">
+                                <div class="editor-header">
+                                    <div class="tab active"><span class="icon">🐍</span> boss_solution.py</div>
+                                    <div class="editor-actions">
+                                        <button id="btn-reset-boss-code" class="btn-cyber text-only small">🔄 Reset</button>
+                                    </div>
+                                </div>
+                                <div class="editor-body">
+                                    <div class="line-numbers" id="boss-line-numbers">1</div>
+                                    <textarea id="boss-code-editor-input" spellcheck="false" placeholder="# Type Python boss solution here..."></textarea>
+                                </div>
+                                
+                                <div class="editor-controls">
+                                    <button id="btn-run-boss-code" class="btn-cyber primary glowing">
+                                        ▶ RUN BOSS CODE
+                                    </button>
+
+                                    <!-- NEXT LEVEL BUTTON ON BOSS CLEAR -->
+                                    <button id="btn-next-zone-boss" class="btn-cyber green-glowing large hidden">
+                                        🎉 ZONE CLEARED! PROCEED TO NEXT LEVEL ➡️ →
+                                    </button>
+                                </div>
+
+                                <div class="terminal-output-panel">
+                                    <div class="terminal-header">
+                                        <span>TERMINAL OUTPUT</span>
+                                        <span id="py-boss-engine-status" class="engine-ready">⚡ Pyodide Ready</span>
+                                    </div>
+                                    <pre id="boss-terminal-console" class="console-box">Click "RUN BOSS CODE" to execute program...</pre>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -314,7 +357,7 @@
             <div class="modal-body align-center">
                 <div class="cyber-avatar">🧑‍🎓</div>
                 <h4>Select or Type Your Student Name</h4>
-                <p>Choose your name to track your progress and sync with the Class Leaderboard!</p>
+                <p>Choose your name to track your progress and sync with the Real-Time Class Leaderboard!</p>
 
                 <div class="name-selection-box">
                     <select id="student-name-dropdown" class="cyber-select">
@@ -337,11 +380,14 @@
         </div>
     </div>
 
-    <!-- MODAL 1: STUDENT COMPETITORS LEADERBOARD -->
+    <!-- MODAL 1: REAL-TIME STUDENT COMPETITORS LEADERBOARD -->
     <div id="modal-leaderboard" class="modal-overlay">
         <div class="modal-content leaderboard">
             <div class="modal-header">
-                <h3>🏆 CLASSROOM COMPETITORS LEADERBOARD</h3>
+                <div>
+                    <h3>🏆 REAL-TIME CLASSROOM LEADERBOARD</h3>
+                    <span style="font-size:0.75rem; color:var(--neon-green);">⚡ Live Realtime Cloud Synchronized</span>
+                </div>
                 <button class="btn-close-modal" id="btn-close-leaderboard">✕</button>
             </div>
             <div class="modal-body">
@@ -357,7 +403,7 @@
                         </tr>
                     </thead>
                     <tbody id="leaderboard-tbody">
-                        <!-- Dynamic Leaderboard Data -->
+                        <!-- Real-time Student Data ONLY -->
                     </tbody>
                 </table>
             </div>
@@ -409,14 +455,14 @@
             <div class="modal-header">
                 <div>
                     <h3>📊 HOST & TEACHER CONTROL CENTER</h3>
-                    <span style="font-size:0.75rem; color:var(--neon-green);">⚡ Live Realtime Cloud Sync Active</span>
+                    <span style="font-size:0.75rem; color:var(--neon-green);">⚡ Live Realtime Cloud Sync Active (No Fake Data)</span>
                 </div>
                 <button class="btn-close-modal" id="btn-close-teacher">✕</button>
             </div>
             <div class="modal-body">
                 <div class="dash-grid">
                     <div class="dash-card">
-                        <h4>Active Students Roster & Progress</h4>
+                        <h4>Active Real-Time Students Roster</h4>
                         <table class="dash-table">
                             <thead>
                                 <tr>
@@ -429,7 +475,7 @@
                                 </tr>
                             </thead>
                             <tbody id="teacher-roster-tbody">
-                                <!-- Live Students Data -->
+                                <!-- Real Live Students Data -->
                             </tbody>
                         </table>
                     </div>
@@ -451,7 +497,7 @@
             </div>
             <div class="modal-footer">
                 <button id="btn-export-report" class="btn-cyber outline">📥 EXPORT REPORT (CSV)</button>
-                <button id="btn-reset-data" class="btn-cyber danger text-only">⚠️ RESET ALL CLASS DATA</button>
+                <button id="btn-reset-data" class="btn-cyber danger text-only">⚠️ RESET CLASS DATA</button>
             </div>
         </div>
     </div>

@@ -131,16 +131,14 @@ body.cyber-theme {
     border: 1px solid var(--neon-yellow);
     padding: 4px 10px;
     border-radius: 20px;
-    cursor: pointer;
     font-size: 0.8rem;
     font-weight: 700;
     color: var(--neon-yellow);
-    transition: var(--transition-fast);
 }
 
-.student-profile-chip:hover {
-    background: rgba(255, 184, 0, 0.3);
-    box-shadow: 0 0 10px var(--neon-yellow);
+.student-profile-chip.locked-profile {
+    cursor: default;
+    user-select: none;
 }
 
 .rank-badge {
@@ -270,6 +268,20 @@ body.cyber-theme {
 
 .btn-cyber.primary:hover {
     box-shadow: 0 0 20px var(--neon-cyan);
+}
+
+.btn-cyber.green-glowing {
+    background: linear-gradient(135deg, var(--neon-green), #00b894);
+    color: #0b0f19;
+    border: none;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    animation: greenPulse 1.8s infinite alternate;
+}
+
+@keyframes greenPulse {
+    0% { box-shadow: 0 0 10px var(--neon-green); transform: scale(1); }
+    100% { box-shadow: 0 0 25px var(--neon-green); transform: scale(1.03); }
 }
 
 .btn-cyber.secondary {
@@ -604,6 +616,14 @@ body.cyber-theme {
     border: 1px solid transparent;
     font-size: 0.8rem;
     color: var(--text-muted);
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.step-node:hover {
+    background: rgba(0, 242, 254, 0.1);
+    border-color: rgba(0, 242, 254, 0.3);
+    color: var(--text-main);
 }
 
 .step-node.active {
@@ -963,7 +983,7 @@ body.cyber-theme {
     border-right: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-#code-editor-input {
+#code-editor-input, #boss-code-editor-input {
     flex: 1;
     background: transparent;
     border: none;
@@ -980,6 +1000,7 @@ body.cyber-theme {
     padding: 10px 16px;
     background: #0d121f;
     display: flex;
+    align-items: center;
     gap: 12px;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
 }

@@ -1,6 +1,6 @@
 /* ==========================================================================
    PYTHON QUEST — THE CODE BREAKERS
-   Core JavaScript Application Logic
+   Core JavaScript Application Logic & Real-Time Sync
    ========================================================================== */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -26,7 +26,8 @@ document.addEventListener('DOMContentLoaded', () => {
         examTimerSeconds: 45 * 60,
         pyodide: null,
         pyodideLoading: false,
-        mistakeLogs: JSON.parse(localStorage.getItem('pq_mistakes')) || []
+        mistakeLogs: JSON.parse(localStorage.getItem('pq_mistakes')) || [],
+        realTimeRoster: []
     };
 
     const RANKS = [
@@ -37,14 +38,8 @@ document.addEventListener('DOMContentLoaded', () => {
         { minXP: 1200, name: 'TERM-I CODE MASTER', icon: '👑', target: 2000 }
     ];
 
-    // Pre-populated Classmate Competitors Data Store
-    const DEFAULT_CLASSMATES = [
-        { name: "Aadhi Kailash", xp: 850, level: 6, lives: 28, mistakes: ["Level 2: Selected 3.4 for 17%5", "Level 4: Missing colon in for loop"] },
-        { name: "Anirudh Ram", xp: 620, level: 5, lives: 25, mistakes: ["Level 1: Selected '2number' as identifier"] },
-        { name: "Ajay", xp: 940, level: 7, lives: 29, mistakes: ["Level 3: Sliced L[1:3] instead of L[1:4]"] },
-        { name: "Mehabob", xp: 480, level: 4, lives: 22, mistakes: ["Level 2: Floating division vs floor division mixup"] },
-        { name: "Varshika", xp: 1100, level: 7, lives: 30, mistakes: [] }
-    ];
+    // Real-Time Cloud Store Key
+    const CLOUD_STORE_ENDPOINT = 'https://kvdb.io/PythonQuest_Class_2026/students_roster';
 
     // ----------------------------------------------------------------------
     // 2. WEB AUDIO SYNTHESIZER
@@ -285,17 +280,19 @@ Neg:    [-5]  [-4]  [-3]  [-2]  [-1]</pre>
     // ----------------------------------------------------------------------
     async function initPyodideEngine() {
         const statusEl = document.getElementById('py-engine-status');
+        const bossStatusEl = document.getElementById('py-boss-engine-status');
         if (window.loadPyodide) {
             try {
-                statusEl.textContent = "⏳ Loading Pyodide Engine...";
+                if (statusEl) statusEl.textContent = "⏳ Loading Pyodide Engine...";
+                if (bossStatusEl) bossStatusEl.textContent = "⏳ Loading Pyodide Engine...";
                 state.pyodideLoading = true;
                 state.pyodide = await window.loadPyodide();
                 state.pyodideLoading = false;
-                statusEl.textContent = "⚡ Pyodide 3.11 Ready";
-                statusEl.className = "engine-ready";
+                if (statusEl) { statusEl.textContent = "⚡ Pyodide 3.11 Ready"; statusEl.className = "engine-ready"; }
+                if (bossStatusEl) { bossStatusEl.textContent = "⚡ Pyodide 3.11 Ready"; bossStatusEl.className = "engine-ready"; }
             } catch (err) {
-                statusEl.textContent = "⚡ JS Interpreter Active";
-                statusEl.className = "engine-ready";
+                if (statusEl) { statusEl.textContent = "⚡ JS Interpreter Active"; statusEl.className = "engine-ready"; }
+                if (bossStatusEl) { bossStatusEl.textContent = "⚡ JS Interpreter Active"; bossStatusEl.className = "engine-ready"; }
             }
         }
     }
@@ -320,12 +317,12 @@ Neg:    [-5]  [-4]  [-3]  [-2]  [-1]</pre>
         }
     }
 
-    async function executePythonCode(code) {
-        const consoleEl = document.getElementById('terminal-console');
+    async function executePythonCode(code, isBoss = false) {
+        const consoleEl = isBoss ? document.getElementById('boss-terminal-console') : document.getElementById('terminal-console');
         const errorBtn = document.getElementById('btn-why-error');
         consoleEl.className = "console-box";
         consoleEl.textContent = "Executing code...";
-        errorBtn.classList.add('hidden');
+        if (errorBtn && !isBoss) errorBtn.classList.add('hidden');
 
         if (state.pyodide) {
             try {
@@ -343,7 +340,7 @@ sys.stderr = io.StringIO()
                     consoleEl.className = "console-box error";
                     consoleEl.textContent = stderr.trim();
                     state.lastErrorMsg = stderr.trim();
-                    errorBtn.classList.remove('hidden');
+                    if (errorBtn && !isBoss) errorBtn.classList.remove('hidden');
                     deductLife(`Syntax/Runtime Error: ${stderr.trim()}`);
                     AudioEngine.error();
                     return { success: false, output: stderr.trim() };
@@ -357,7 +354,7 @@ sys.stderr = io.StringIO()
                 consoleEl.className = "console-box error";
                 consoleEl.textContent = err.message;
                 state.lastErrorMsg = err.message;
-                errorBtn.classList.remove('hidden');
+                if (errorBtn && !isBoss) errorBtn.classList.remove('hidden');
                 deductLife(`Error: ${err.message}`);
                 AudioEngine.error();
                 return { success: false, output: err.message };
@@ -373,7 +370,7 @@ sys.stderr = io.StringIO()
                 consoleEl.className = "console-box error";
                 consoleEl.textContent = res.error;
                 state.lastErrorMsg = res.error;
-                errorBtn.classList.remove('hidden');
+                if (errorBtn && !isBoss) errorBtn.classList.remove('hidden');
                 deductLife(`JS Fallback Error: ${res.error}`);
                 AudioEngine.error();
                 return { success: false, output: res.error };
@@ -382,13 +379,12 @@ sys.stderr = io.StringIO()
     }
 
     // ----------------------------------------------------------------------
-    // 5. STUDENT DATA & MISTAKE LOGGING
+    // 5. STUDENT DATA & 100% REAL-TIME CLOUD SYNC ENGINE
     // ----------------------------------------------------------------------
     function deductLife(reason) {
         state.lives = Math.max(0, state.lives - 1);
         document.getElementById('lives-count').textContent = state.lives;
 
-        // Log mistake
         if (state.studentName) {
             let logEntry = `Level ${state.currentLevel}: ${reason}`;
             state.mistakeLogs.push(logEntry);
@@ -403,15 +399,13 @@ sys.stderr = io.StringIO()
         }
     }
 
-    function syncStudentData() {
+    async function syncStudentData() {
         if (!state.studentName) return;
         localStorage.setItem('pq_student_name', state.studentName);
         localStorage.setItem('pq_xp', state.xp);
         localStorage.setItem('pq_unlocked', state.unlockedLevel);
 
-        // Save student profile to localStorage database table
-        let allStudents = JSON.parse(localStorage.getItem('pq_all_students')) || {};
-        allStudents[state.studentName] = {
+        let studentObj = {
             name: state.studentName,
             xp: state.xp,
             level: state.unlockedLevel,
@@ -419,7 +413,56 @@ sys.stderr = io.StringIO()
             mistakes: state.mistakeLogs,
             lastActive: new Date().toLocaleTimeString()
         };
+
+        // 1. Local Database sync
+        let allStudents = JSON.parse(localStorage.getItem('pq_all_students')) || {};
+        allStudents[state.studentName] = studentObj;
         localStorage.setItem('pq_all_students', JSON.stringify(allStudents));
+
+        // 2. Cloud Real-time API Sync
+        try {
+            await fetch(CLOUD_STORE_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(allStudents)
+            });
+        } catch (e) { }
+    }
+
+    async function fetchRealTimeRoster() {
+        let roster = [];
+        try {
+            let res = await fetch(CLOUD_STORE_ENDPOINT);
+            if (res.ok) {
+                let data = await res.json();
+                if (data && typeof data === 'object') {
+                    roster = Object.values(data);
+                }
+            }
+        } catch (e) { }
+
+        if (roster.length === 0) {
+            let localAll = JSON.parse(localStorage.getItem('pq_all_students')) || {};
+            roster = Object.values(localAll);
+        }
+
+        if (state.studentName) {
+            let existingIdx = roster.findIndex(s => s.name && s.name.toLowerCase() === state.studentName.toLowerCase());
+            let currentObj = {
+                name: state.studentName,
+                xp: state.xp,
+                level: state.unlockedLevel,
+                lives: state.lives,
+                mistakes: state.mistakeLogs,
+                lastActive: 'Just now'
+            };
+            if (existingIdx !== -1) roster[existingIdx] = currentObj;
+            else roster.push(currentObj);
+        }
+
+        roster.sort((a, b) => b.xp - a.xp);
+        state.realTimeRoster = roster;
+        return roster;
     }
 
     // ----------------------------------------------------------------------
@@ -451,7 +494,7 @@ sys.stderr = io.StringIO()
         document.getElementById('current-level-tag').textContent = `L${state.currentLevel}: Zone ${state.currentLevel}`;
         document.getElementById('overall-progress-text').textContent = `${state.unlockedLevel - 1} / 8 Zones Cleared`;
 
-        // Render Map Sidebar List
+        // Render Map Sidebar List with strict unlock enforcement
         const listEl = document.getElementById('level-map-list');
         listEl.innerHTML = '';
         for (let i = 1; i <= 8; i++) {
@@ -469,12 +512,15 @@ sys.stderr = io.StringIO()
                     <span class="node-desc">${lData.subtitle}</span>
                 </div>
             `;
-            if (!isLocked) {
-                item.addEventListener('click', () => {
+            item.addEventListener('click', () => {
+                if (isLocked) {
+                    AudioEngine.error();
+                    alert(`🔒 Zone ${i} is locked! You must clear Zone ${i - 1} Boss to unlock it.`);
+                } else {
                     AudioEngine.click();
                     loadZoneLevel(i);
-                });
-            }
+                }
+            });
             listEl.appendChild(item);
         }
 
@@ -505,7 +551,7 @@ sys.stderr = io.StringIO()
     function loadZoneLevel(levelId) {
         state.currentLevel = levelId;
         state.currentStage = 'learn';
-        state.lives = 30; // Reset to 30 lives per level!
+        state.lives = 30; // Reset to 30 fresh lives per level!
         updateUIState();
 
         if (levelId === 8) {
@@ -523,15 +569,16 @@ sys.stderr = io.StringIO()
         document.getElementById('learn-card-body').innerHTML = lData.learn.body;
 
         renderMiniGame(levelId);
-
-        let stageData = (state.currentStage === 'boss') ? lData.boss : lData.code;
-        document.getElementById('code-mission-title').textContent = stageData.title;
-        document.getElementById('code-mission-desc').innerHTML = `<p>${stageData.desc}</p>`;
-        document.getElementById('code-editor-input').value = stageData.initialCode;
-        updateLineNumbers();
-
         setMissionStage('learn');
     }
+
+    // Interactive Stepper Nodes
+    ['learn', 'play', 'code', 'boss'].forEach(stage => {
+        document.getElementById(`step-${stage}`).addEventListener('click', () => {
+            AudioEngine.click();
+            setMissionStage(stage);
+        });
+    });
 
     function setMissionStage(stage) {
         state.currentStage = stage;
@@ -541,41 +588,65 @@ sys.stderr = io.StringIO()
         document.querySelectorAll('.stage-container').forEach(c => c.classList.remove('active'));
         document.getElementById(`stage-${stage}`).classList.add('active');
 
-        if (stage === 'code' || stage === 'boss') {
-            let lData = LEVELS_DATA[state.currentLevel];
-            let targetData = (stage === 'boss') ? lData.boss : lData.code;
-            document.getElementById('code-mission-title').textContent = targetData.title;
-            document.getElementById('code-mission-desc').innerHTML = `<p>${targetData.desc}</p>`;
-            document.getElementById('code-editor-input').value = targetData.initialCode;
+        let lData = LEVELS_DATA[state.currentLevel];
+
+        if (stage === 'code') {
+            document.getElementById('code-mission-title').textContent = lData.code.title;
+            document.getElementById('code-mission-desc').innerHTML = `<p>${lData.code.desc}</p>`;
+            document.getElementById('code-editor-input').value = lData.code.initialCode;
             updateLineNumbers();
+        } else if (stage === 'boss') {
+            document.getElementById('boss-challenge-title').textContent = lData.boss.title;
+            document.getElementById('boss-mission-desc').innerHTML = `<p>${lData.boss.desc}</p>`;
+            document.getElementById('boss-code-editor-input').value = lData.boss.initialCode;
+            updateBossLineNumbers();
         }
     }
 
-    // Line numbers sync
+    // Line numbers sync for normal code editor
     const codeEditor = document.getElementById('code-editor-input');
     const lineNumbers = document.getElementById('line-numbers');
 
     function updateLineNumbers() {
+        if (!codeEditor || !lineNumbers) return;
         const lines = codeEditor.value.split('\n').length;
         lineNumbers.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join('<br>');
     }
+    if (codeEditor) {
+        codeEditor.addEventListener('input', updateLineNumbers);
+        codeEditor.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = codeEditor.selectionStart;
+                const end = codeEditor.selectionEnd;
+                codeEditor.value = codeEditor.value.substring(0, start) + "    " + codeEditor.value.substring(end);
+                codeEditor.selectionStart = codeEditor.selectionEnd = start + 4;
+                updateLineNumbers();
+            }
+        });
+    }
 
-    codeEditor.addEventListener('input', updateLineNumbers);
-    codeEditor.addEventListener('keydown', (e) => {
-        if (e.key === 'Tab') {
-            e.preventDefault();
-            const start = codeEditor.selectionStart;
-            const end = codeEditor.selectionEnd;
-            codeEditor.value = codeEditor.value.substring(0, start) + "    " + codeEditor.value.substring(end);
-            codeEditor.selectionStart = codeEditor.selectionEnd = start + 4;
-            updateLineNumbers();
-        }
-    });
+    // Line numbers sync for boss code editor
+    const bossCodeEditor = document.getElementById('boss-code-editor-input');
+    const bossLineNumbers = document.getElementById('boss-line-numbers');
 
-    function addXP(amount, msg) {
-        state.xp += amount;
-        AudioEngine.levelUp();
-        updateUIState();
+    function updateBossLineNumbers() {
+        if (!bossCodeEditor || !bossLineNumbers) return;
+        const lines = bossCodeEditor.value.split('\n').length;
+        bossLineNumbers.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join('<br>');
+    }
+    if (bossCodeEditor) {
+        bossCodeEditor.addEventListener('input', updateBossLineNumbers);
+        bossCodeEditor.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = bossCodeEditor.selectionStart;
+                const end = bossCodeEditor.selectionEnd;
+                bossCodeEditor.value = bossCodeEditor.value.substring(0, start) + "    " + bossCodeEditor.value.substring(end);
+                bossCodeEditor.selectionStart = bossCodeEditor.selectionEnd = start + 4;
+                updateBossLineNumbers();
+            }
+        });
     }
 
     // ----------------------------------------------------------------------
@@ -607,10 +678,6 @@ sys.stderr = io.StringIO()
         state.studentName = chosenName;
         updateUIState();
         AudioEngine.success();
-    });
-
-    document.getElementById('btn-change-student-name').addEventListener('click', () => {
-        document.getElementById('modal-student-login').classList.add('active');
     });
 
     // ----------------------------------------------------------------------
@@ -756,11 +823,11 @@ sys.stderr = io.StringIO()
     }
 
     // ----------------------------------------------------------------------
-    // 9. STUDENT LEADERBOARD & TEACHER DASHBOARD
+    // 9. REAL-TIME STUDENT LEADERBOARD & HOST TEACHER DASHBOARD
     // ----------------------------------------------------------------------
-    document.getElementById('btn-leaderboard').addEventListener('click', () => {
+    document.getElementById('btn-leaderboard').addEventListener('click', async () => {
         AudioEngine.click();
-        renderLeaderboard();
+        await renderLeaderboard();
         document.getElementById('modal-leaderboard').classList.add('active');
     });
 
@@ -771,60 +838,36 @@ sys.stderr = io.StringIO()
         document.getElementById('modal-leaderboard').classList.remove('active');
     });
 
-    function getCombinedRoster() {
-        let storedStudents = JSON.parse(localStorage.getItem('pq_all_students')) || {};
-        let list = [...DEFAULT_CLASSMATES];
+    async function renderLeaderboard() {
+        const tbody = document.getElementById('leaderboard-tbody');
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:16px;">⏳ Fetching Real-Time Student Roster...</td></tr>`;
 
-        Object.values(storedStudents).forEach(st => {
-            let existingIdx = list.findIndex(c => c.name.toLowerCase() === st.name.toLowerCase());
-            if (existingIdx !== -1) {
-                list[existingIdx] = st;
-            } else {
-                list.push(st);
-            }
-        });
+        let roster = await fetchRealTimeRoster();
 
-        // Ensure current user is in list
-        if (state.studentName) {
-            let curIdx = list.findIndex(c => c.name.toLowerCase() === state.studentName.toLowerCase());
-            let curObj = {
-                name: state.studentName,
-                xp: state.xp,
-                level: state.unlockedLevel,
-                lives: state.lives,
-                mistakes: state.mistakeLogs
-            };
-            if (curIdx !== -1) list[curIdx] = curObj;
-            else list.push(curObj);
+        if (!roster || roster.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:16px; color:var(--text-muted);">No real students have joined yet. As students enter their names on Netlify, they will appear here live!</td></tr>`;
+            return;
         }
 
-        list.sort((a, b) => b.xp - a.xp);
-        return list;
-    }
-
-    function renderLeaderboard() {
-        const tbody = document.getElementById('leaderboard-tbody');
-        let roster = getCombinedRoster();
-
         tbody.innerHTML = roster.map((s, idx) => {
-            let isCurrent = (s.name.toLowerCase() === state.studentName.toLowerCase());
+            let isCurrent = (s.name && s.name.toLowerCase() === state.studentName.toLowerCase());
             let rankBadge = (idx === 0) ? '👑' : (idx === 1 ? '🥇' : (idx === 2 ? '🥈' : (idx === 3 ? '🥉' : `#${idx + 1}`)));
             return `
                 <tr style="${isCurrent ? 'background:rgba(0,242,254,0.15); font-weight:700; color:var(--neon-cyan);' : ''}">
                     <td>${rankBadge}</td>
                     <td>${s.name} ${isCurrent ? '(YOU)' : ''}</td>
-                    <td><strong style="color:var(--neon-yellow);">${s.xp} XP</strong></td>
-                    <td>Zone ${s.level}</td>
-                    <td>${s.xp >= 1200 ? '👑 Code Master' : (s.xp >= 800 ? '🥇 Hacker' : '🥉 Explorer')}</td>
-                    <td><span style="color:var(--neon-green);">Active</span></td>
+                    <td><strong style="color:var(--neon-yellow);">${s.xp || 0} XP</strong></td>
+                    <td>Zone ${s.level || 1}</td>
+                    <td>${(s.xp || 0) >= 1200 ? '👑 Code Master' : ((s.xp || 0) >= 800 ? '🥇 Hacker' : '🥉 Explorer')}</td>
+                    <td><span style="color:var(--neon-green);">Active (${s.lastActive || 'Live'})</span></td>
                 </tr>
             `;
         }).join('');
     }
 
-    document.getElementById('btn-teacher-dash').addEventListener('click', () => {
+    document.getElementById('btn-teacher-dash').addEventListener('click', async () => {
         AudioEngine.click();
-        renderTeacherDashboard();
+        await renderTeacherDashboard();
         document.getElementById('modal-teacher-dash').classList.add('active');
     });
 
@@ -832,30 +875,36 @@ sys.stderr = io.StringIO()
         document.getElementById('modal-teacher-dash').classList.remove('active');
     });
 
-    function renderTeacherDashboard() {
+    async function renderTeacherDashboard() {
         const tbody = document.getElementById('teacher-roster-tbody');
-        let roster = getCombinedRoster();
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:16px;">⏳ Fetching Real-Time Active Students...</td></tr>`;
 
-        tbody.innerHTML = roster.map(s => {
-            let mCount = (s.mistakes && s.mistakes.length) || 0;
-            return `
-                <tr>
-                    <td><strong>${s.name}</strong></td>
-                    <td>${s.xp} XP</td>
-                    <td>Zone ${s.level}</td>
-                    <td>❤️ ${s.lives || 30}</td>
-                    <td><span style="${mCount > 0 ? 'color:var(--neon-pink);' : 'color:var(--neon-green);'}">${mCount} error(s)</span></td>
-                    <td><button class="btn-cyber outline small btn-view-log" data-name="${s.name}">View Log</button></td>
-                </tr>
-            `;
-        }).join('');
+        let roster = await fetchRealTimeRoster();
 
-        tbody.querySelectorAll('.btn-view-log').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                let sName = e.target.dataset.name;
-                inspectStudentMistakes(sName);
+        if (!roster || roster.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:16px; color:var(--text-muted);">No active students recorded yet. Give the link to your students to view live progress!</td></tr>`;
+        } else {
+            tbody.innerHTML = roster.map(s => {
+                let mCount = (s.mistakes && s.mistakes.length) || 0;
+                return `
+                    <tr>
+                        <td><strong>${s.name}</strong></td>
+                        <td>${s.xp || 0} XP</td>
+                        <td>Zone ${s.level || 1}</td>
+                        <td>❤️ ${s.lives || 30}</td>
+                        <td><span style="${mCount > 0 ? 'color:var(--neon-pink);' : 'color:var(--neon-green);'}">${mCount} error(s)</span></td>
+                        <td><button class="btn-cyber outline small btn-view-log" data-name="${s.name}">View Log</button></td>
+                    </tr>
+                `;
+            }).join('');
+
+            tbody.querySelectorAll('.btn-view-log').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    let sName = e.target.dataset.name;
+                    inspectStudentMistakes(sName);
+                });
             });
-        });
+        }
 
         const bars = document.getElementById('concept-mastery-bars');
         bars.innerHTML = `
@@ -868,8 +917,8 @@ sys.stderr = io.StringIO()
     }
 
     function inspectStudentMistakes(studentName) {
-        let roster = getCombinedRoster();
-        let target = roster.find(s => s.name.toLowerCase() === studentName.toLowerCase());
+        let roster = state.realTimeRoster;
+        let target = roster.find(s => s.name && s.name.toLowerCase() === studentName.toLowerCase());
         const logBox = document.getElementById('student-mistake-log-list');
         document.getElementById('mistake-log-title').textContent = `Mistake & Error History Log: ${studentName}`;
 
@@ -881,11 +930,11 @@ sys.stderr = io.StringIO()
     }
 
     // Export CSV Report
-    document.getElementById('btn-export-report').addEventListener('click', () => {
-        let roster = getCombinedRoster();
+    document.getElementById('btn-export-report').addEventListener('click', async () => {
+        let roster = await fetchRealTimeRoster();
         let csvContent = "data:text/csv;charset=utf-8,Student Name,XP,Zone Level,Lives,Mistake Count\n";
         roster.forEach(s => {
-            csvContent += `"${s.name}",${s.xp},${s.level},${s.lives || 30},${(s.mistakes && s.mistakes.length) || 0}\n`;
+            csvContent += `"${s.name}",${s.xp || 0},${s.level || 1},${s.lives || 30},${(s.mistakes && s.mistakes.length) || 0}\n`;
         });
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -1078,7 +1127,7 @@ sys.stderr = io.StringIO()
     }
 
     // ----------------------------------------------------------------------
-    // 12. PROCTORING ANTI-CHEAT
+    // 12. PROCTORING ANTI-CHEAT & NAVIGATION
     // ----------------------------------------------------------------------
     const proctorBtn = document.getElementById('btn-proctor-toggle');
     proctorBtn.addEventListener('click', () => {
@@ -1130,36 +1179,76 @@ sys.stderr = io.StringIO()
         setMissionStage('code');
     });
 
+    // CODE STAGE EXECUTION
     document.getElementById('btn-run-code').addEventListener('click', async () => {
         AudioEngine.click();
-        const code = codeEditor.value;
+        const code = document.getElementById('code-editor-input').value;
         let lData = LEVELS_DATA[state.currentLevel];
-        let targetData = (state.currentStage === 'boss') ? lData.boss : lData.code;
 
-        let result = await executePythonCode(code);
+        let result = await executePythonCode(code, false);
 
-        if (result.success && result.output.trim() === targetData.expectedOutput.trim()) {
-            if (state.currentStage === 'code') {
-                addXP(30, "Coding Mission Complete!");
-                alert("🎉 MISSION CLEAR! Proceeding to BOSS Challenge!");
-                setMissionStage('boss');
-            } else if (state.currentStage === 'boss') {
-                addXP(100, "Zone Boss Defeated!");
-                alert(`👑 ZONE ${state.currentLevel} CLEARED! +100 XP!`);
-                if (state.unlockedLevel === state.currentLevel) {
-                    state.unlockedLevel = Math.min(8, state.unlockedLevel + 1);
-                }
-                updateUIState();
-                switchViewPanel('map-overview-view');
+        if (result.success && result.output.trim() === lData.code.expectedOutput.trim()) {
+            addXP(30, "Coding Mission Complete!");
+            AudioEngine.success();
+            const nextBtn = document.getElementById('btn-next-stage-code');
+            nextBtn.classList.remove('hidden');
+            nextBtn.classList.add('glowing');
+            alert("🎉 MISSION CLEAR! Click 'PROCEED TO BOSS 👹' to fight the Boss!");
+        }
+    });
+
+    // PROCEED TO BOSS BUTTON
+    document.getElementById('btn-next-stage-code').addEventListener('click', () => {
+        AudioEngine.click();
+        setMissionStage('boss');
+    });
+
+    // BOSS STAGE EXECUTION
+    document.getElementById('btn-run-boss-code').addEventListener('click', async () => {
+        AudioEngine.click();
+        const code = document.getElementById('boss-code-editor-input').value;
+        let lData = LEVELS_DATA[state.currentLevel];
+
+        let result = await executePythonCode(code, true);
+
+        if (result.success && result.output.trim() === lData.boss.expectedOutput.trim()) {
+            addXP(100, "Zone Boss Defeated!");
+            AudioEngine.success();
+            const nextZoneBtn = document.getElementById('btn-next-zone-boss');
+            nextZoneBtn.classList.remove('hidden');
+            nextZoneBtn.classList.add('glowing');
+            if (state.unlockedLevel === state.currentLevel) {
+                state.unlockedLevel = Math.min(8, state.unlockedLevel + 1);
             }
+            updateUIState();
+            alert(`👑 ZONE ${state.currentLevel} BOSS DEFEATED! +100 XP! Click 'PROCEED TO NEXT LEVEL ➡️'!`);
+        }
+    });
+
+    // PROCEED TO NEXT LEVEL BUTTON
+    document.getElementById('btn-next-zone-boss').addEventListener('click', () => {
+        AudioEngine.click();
+        if (state.unlockedLevel === state.currentLevel) {
+            state.unlockedLevel = Math.min(8, state.unlockedLevel + 1);
+        }
+        updateUIState();
+        if (state.currentLevel < 8) {
+            loadZoneLevel(state.currentLevel + 1);
+        } else {
+            switchViewPanel('map-overview-view');
         }
     });
 
     document.getElementById('btn-reset-code').addEventListener('click', () => {
         let lData = LEVELS_DATA[state.currentLevel];
-        let targetData = (state.currentStage === 'boss') ? lData.boss : lData.code;
-        codeEditor.value = targetData.initialCode;
+        document.getElementById('code-editor-input').value = lData.code.initialCode;
         updateLineNumbers();
+    });
+
+    document.getElementById('btn-reset-boss-code').addEventListener('click', () => {
+        let lData = LEVELS_DATA[state.currentLevel];
+        document.getElementById('boss-code-editor-input').value = lData.boss.initialCode;
+        updateBossLineNumbers();
     });
 
     document.getElementById('btn-sound-toggle').addEventListener('click', () => {
