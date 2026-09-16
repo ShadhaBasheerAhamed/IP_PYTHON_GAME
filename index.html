@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python Quest — The Code Breakers</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- Pyodide for Browser Python Execution -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js" defer></script>
+</head>
+<body class="cyber-theme">
+    <div id="app-container">
+        <!-- TOP NAVIGATION BAR -->
+        <header class="top-nav">
+            <div class="brand">
+                <span class="logo-icon">🐍</span>
+                <div class="brand-text">
+                    <h1>PYTHON QUEST</h1>
+                    <span class="subtitle">THE CODE BREAKERS</span>
+                </div>
+            </div>
+
+            <!-- PLAYER XP & STATUS -->
+            <div class="player-stats">
+                <div class="student-profile-chip" id="btn-change-student-name" title="Click to Change Student Profile">
+                    <span class="avatar-icon">🧑‍🎓</span>
+                    <span class="student-name-display" id="student-name-tag">Select Name</span>
+                </div>
+
+                <div class="rank-badge" id="player-rank-badge">
+                    <span class="rank-icon" id="rank-icon">🧑‍💻</span>
+                    <span class="rank-name" id="rank-name">ROOKIE CODER</span>
+                </div>
+                
+                <div class="xp-container">
+                    <div class="xp-text">
+                        <span>XP: <strong id="current-xp">0</strong> / <span id="target-xp">100</span></span>
+                        <span class="level-indicator" id="current-level-tag">L1: Base Camp</span>
+                    </div>
+                    <div class="xp-bar-bg">
+                        <div class="xp-bar-fill" id="xp-bar-fill" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <div class="status-indicators">
+                    <div class="status-item lives" title="30 Lives Per Level">
+                        <span class="label">LIVES (PER LEVEL)</span>
+                        <div class="lives-counter" id="lives-display">❤️ <strong id="lives-count">30</strong>/30</div>
+                    </div>
+                    <div class="status-item hints" title="Available Hints">
+                        <span class="label">HINTS</span>
+                        <div class="bulbs" id="hints-display">💡💡💡</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CONTROLS & DASHBOARD -->
+            <div class="nav-controls">
+                <button id="btn-leaderboard" class="btn-cyber pill primary" title="View Competitors Leaderboard">
+                    <span class="btn-icon">🏆</span> LEADERBOARD
+                </button>
+                <button id="btn-cheat-cards" class="btn-cyber pill" title="Open Code Cheat Sheet">
+                    <span class="btn-icon">📖</span> CHEAT CARD
+                </button>
+                <button id="btn-proctor-toggle" class="btn-cyber pill outline" title="Toggle Proctor Anti-Cheat Mode">
+                    <span class="btn-icon">🔒</span> PROCTOR: <span id="proctor-status-text">OFF</span>
+                </button>
+                <button id="btn-sound-toggle" class="btn-cyber icon-only" title="Toggle Sound">
+                    <span id="sound-icon">🔊</span>
+                </button>
+                <button id="btn-teacher-dash" class="btn-cyber pill secondary" title="Open Teacher Dashboard">
+                    <span class="btn-icon">📊</span> HOST / TEACHER
+                </button>
+            </div>
+        </header>
+
+        <!-- MAIN CONTENT AREA -->
+        <main class="main-layout">
+            <!-- LEFT SIDEBAR: LEVEL MAP NAVIGATOR -->
+            <aside class="level-sidebar">
+                <div class="sidebar-header">
+                    <h3>🗺️ ZONE MAP</h3>
+                    <span class="progress-summary" id="overall-progress-text">0 / 8 Zones Cleared</span>
+                </div>
+                <div class="level-map-list" id="level-map-list">
+                    <!-- Dynamic Level Nodes inserted via JS -->
+                </div>
+            </aside>
+
+            <!-- CENTER GAMEPLAY AREA -->
+            <section class="gameplay-area">
+                <!-- MAP VIEW MODE (Overview) -->
+                <div id="map-overview-view" class="view-panel active">
+                    <div class="hero-card">
+                        <div class="hero-content">
+                            <span class="hero-badge">🚨 SYSTEM ALERT</span>
+                            <h2>THE PYTHON CORE HAS BEEN HACKED!</h2>
+                            <p>Recruit <strong id="hero-student-name" style="color:var(--neon-cyan);">Coder</strong>, your mission is to infiltrate the 8 Python Zones, defeat bugs, master code concepts, and restore system integrity before the <strong>TERM-I EXAM ARENA</strong> opens!</p>
+                            <div class="hero-actions">
+                                <button id="btn-start-quest" class="btn-cyber primary large glowing">
+                                    ▶ ENTER ZONE 1: PYTHON BASE CAMP
+                                </button>
+                            </div>
+                        </div>
+                        <div class="hero-visual">
+                            <div class="cyber-shield-anim">🐍</div>
+                        </div>
+                    </div>
+
+                    <div class="curriculum-overview">
+                        <h3>8 LEVEL ROADMAP</h3>
+                        <div class="roadmap-grid" id="roadmap-grid">
+                            <!-- Cards inserted via JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ZONE ACTIVE GAMEPLAY VIEW -->
+                <div id="zone-gameplay-view" class="view-panel">
+                    <!-- LEVEL STAGE HEADER & STEPPER -->
+                    <div class="zone-header">
+                        <div class="zone-title-box">
+                            <button id="btn-back-to-map" class="btn-cyber small outline">← MAP</button>
+                            <div>
+                                <h2 id="zone-title">LEVEL 1: PYTHON BASE CAMP</h2>
+                                <p id="zone-subtitle" class="subtitle-text">Mastering Python Identifiers & Objects</p>
+                            </div>
+                        </div>
+                        
+                        <!-- MISSION PIPELINE STEPPER -->
+                        <div class="mission-stepper">
+                            <div class="step-node active" id="step-learn">
+                                <span class="step-num">1</span>
+                                <span class="step-label">📖 LEARN</span>
+                            </div>
+                            <div class="step-line"></div>
+                            <div class="step-node" id="step-play">
+                                <span class="step-num">2</span>
+                                <span class="step-label">🎮 PLAY</span>
+                            </div>
+                            <div class="step-line"></div>
+                            <div class="step-node" id="step-code">
+                                <span class="step-num">3</span>
+                                <span class="step-label">💻 CODE</span>
+                            </div>
+                            <div class="step-line"></div>
+                            <div class="step-node" id="step-boss">
+                                <span class="step-num">4</span>
+                                <span class="step-label">👹 BOSS</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- STEP 1: LEARN (CONCEPT CARD) -->
+                    <div id="stage-learn" class="stage-container active">
+                        <div class="concept-card">
+                            <div class="card-header">
+                                <span class="card-tag">📖 CONCEPT CORE</span>
+                                <h3 id="learn-card-title">Python Identifiers & Object Types</h3>
+                            </div>
+                            <div class="card-body" id="learn-card-body">
+                                <!-- Dynamic Concept HTML -->
+                            </div>
+                            <div class="card-footer">
+                                <div class="reward-tag">+5 XP for reading</div>
+                                <button id="btn-next-to-play" class="btn-cyber primary">
+                                    CONTINUE TO MINI-GAME 🎮 →
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- STEP 2: PLAY (INTERACTIVE MINI-GAME) -->
+                    <div id="stage-play" class="stage-container">
+                        <div class="mini-game-wrapper">
+                            <div class="game-header">
+                                <span class="game-badge" id="mini-game-badge">🎮 MINI-GAME</span>
+                                <h3 id="mini-game-title">Identifier Scanner</h3>
+                                <p id="mini-game-desc">Drag valid Python identifiers into the Code Safe!</p>
+                            </div>
+
+                            <div class="mini-game-viewport" id="mini-game-viewport">
+                                <!-- Dynamic Mini Game HTML rendered via JS -->
+                            </div>
+
+                            <div class="mini-game-footer">
+                                <button id="btn-use-hint-play" class="btn-cyber outline small">💡 USE HINT (-5 XP)</button>
+                                <button id="btn-next-to-code" class="btn-cyber primary" disabled>
+                                    PROCEED TO CODING 💻 →
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- STEP 3: CODE (INTERACTIVE PYTHON TERMINAL) -->
+                    <div id="stage-code" class="stage-container">
+                        <div class="code-mission-layout">
+                            <div class="mission-briefing">
+                                <div class="briefing-header">
+                                    <span class="briefing-tag">💻 CODING MISSION</span>
+                                    <h3 id="code-mission-title">Mission Title</h3>
+                                </div>
+                                <div class="briefing-body" id="code-mission-desc">
+                                    <!-- Instructions & hints -->
+                                </div>
+                                <div class="briefing-footer">
+                                    <div class="mission-reward">+30 XP</div>
+                                    <button id="btn-use-hint-code" class="btn-cyber outline small">💡 NEED A HINT?</button>
+                                </div>
+                            </div>
+
+                            <div class="terminal-editor-container">
+                                <div class="editor-header">
+                                    <div class="tab active"><span class="icon">🐍</span> main.py</div>
+                                    <div class="editor-actions">
+                                        <button id="btn-reset-code" class="btn-cyber text-only small">🔄 Reset</button>
+                                    </div>
+                                </div>
+                                <div class="editor-body">
+                                    <div class="line-numbers" id="line-numbers">1</div>
+                                    <textarea id="code-editor-input" spellcheck="false" placeholder="# Type Python code here..."></textarea>
+                                </div>
+                                <div class="editor-controls">
+                                    <button id="btn-run-code" class="btn-cyber primary glowing">
+                                        ▶ RUN CODE
+                                    </button>
+                                    <button id="btn-why-error" class="btn-cyber danger outline hidden">
+                                        ❓ WHY DID I GET THIS ERROR?
+                                    </button>
+                                </div>
+                                <div class="terminal-output-panel">
+                                    <div class="terminal-header">
+                                        <span>TERMINAL OUTPUT</span>
+                                        <span id="py-engine-status" class="engine-ready">⚡ Pyodide Ready</span>
+                                    </div>
+                                    <pre id="terminal-console" class="console-box">Click "RUN CODE" to execute program...</pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- STEP 4: BOSS (CHALLENGE) -->
+                    <div id="stage-boss" class="stage-container">
+                        <div class="boss-arena-card">
+                            <div class="boss-header">
+                                <span class="boss-tag">👹 ZONE BOSS CHALLENGE</span>
+                                <h3 id="boss-challenge-title">The Pattern Overlord</h3>
+                                <div class="boss-hp-bar">
+                                    <div class="boss-hp-fill" id="boss-hp-fill" style="width: 100%;"></div>
+                                </div>
+                            </div>
+
+                            <div class="boss-content" id="boss-content">
+                                <!-- Boss Code Editor / Complex Challenge -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LEVEL 8: TERM-I EXAM ARENA VIEW -->
+                <div id="exam-arena-view" class="view-panel">
+                    <div class="exam-arena-header">
+                        <div class="exam-title-box">
+                            <span class="arena-tag">👑 FINAL ARENA</span>
+                            <h2>TERM-I EXAM SIMULATION</h2>
+                            <p>Full 30-Question Paper Challenge | 5 Examination Rooms</p>
+                        </div>
+                        <div class="exam-meta">
+                            <div class="meta-box timer">
+                                ⏱️ TIMER: <span id="exam-timer-display">45:00</span>
+                            </div>
+                            <div class="meta-box lives">
+                                ❤️ LIVES: <span id="exam-lives-display">30</span>
+                            </div>
+                            <div class="meta-box score">
+                                ⭐ SCORE: <span id="exam-score-display">0</span> / 100
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- EXAM ROOM TABS -->
+                    <div class="exam-room-tabs">
+                        <button class="room-tab active" data-room="A">🟢 ROOM A: QUICK FIRE (MCQs)</button>
+                        <button class="room-tab" data-room="B">🟡 ROOM B: CODE LAB (Output)</button>
+                        <button class="room-tab" data-room="C">🟠 ROOM C: DEBUG LAB (Fixes)</button>
+                        <button class="room-tab" data-room="D">🔴 ROOM D: ADVANCED MISSIONS</button>
+                        <button class="room-tab" data-room="E">👑 ROOM E: BOSS PROGRAMMING</button>
+                    </div>
+
+                    <div class="exam-room-container" id="exam-room-container">
+                        <!-- Dynamic Exam Questions injected via JS -->
+                    </div>
+
+                    <div class="exam-footer">
+                        <button id="btn-submit-exam" class="btn-cyber primary large glowing">
+                            🏆 SUBMIT FINAL EXAM PAPER
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- MODAL 0: STUDENT WELCOME & NAME ENTRY MODAL -->
+    <div id="modal-student-login" class="modal-overlay active">
+        <div class="modal-content login-modal">
+            <div class="modal-header">
+                <h3>🏫 WELCOME CODE BREAKER!</h3>
+            </div>
+            <div class="modal-body align-center">
+                <div class="cyber-avatar">🧑‍🎓</div>
+                <h4>Select or Type Your Student Name</h4>
+                <p>Choose your name to track your progress and sync with the Class Leaderboard!</p>
+
+                <div class="name-selection-box">
+                    <select id="student-name-dropdown" class="cyber-select">
+                        <option value="Aadhi Kailash">Aadhi Kailash</option>
+                        <option value="Anirudh Ram">Anirudh Ram</option>
+                        <option value="Ajay">Ajay</option>
+                        <option value="Mehabob">Mehabob</option>
+                        <option value="Varshika">Varshika</option>
+                        <option value="__custom__">✏️ Custom Name...</option>
+                    </select>
+
+                    <input type="text" id="custom-name-input" class="cyber-input hidden" placeholder="Enter your full name..." maxlength="30">
+                </div>
+            </div>
+            <div class="modal-footer flex-center">
+                <button id="btn-confirm-student-login" class="btn-cyber primary large glowing">
+                    ▶ START PYTHON QUEST
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 1: STUDENT COMPETITORS LEADERBOARD -->
+    <div id="modal-leaderboard" class="modal-overlay">
+        <div class="modal-content leaderboard">
+            <div class="modal-header">
+                <h3>🏆 CLASSROOM COMPETITORS LEADERBOARD</h3>
+                <button class="btn-close-modal" id="btn-close-leaderboard">✕</button>
+            </div>
+            <div class="modal-body">
+                <table class="dash-table">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Student</th>
+                            <th>XP</th>
+                            <th>Zone Reached</th>
+                            <th>Title</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboard-tbody">
+                        <!-- Dynamic Leaderboard Data -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cyber primary" id="btn-close-leaderboard-ok">CONTINUE QUEST! 🐍</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: CODE CHEAT CARD DRAWER -->
+    <div id="modal-cheat-cards" class="drawer-overlay">
+        <div class="drawer-content">
+            <div class="drawer-header">
+                <h3>📖 PYTHON QUICK CHEAT CARDS</h3>
+                <button class="btn-close-drawer" id="btn-close-cheat">✕</button>
+            </div>
+            <div class="drawer-tabs">
+                <button class="cheat-tab-btn active" data-cheat="basics">Basics & Identifiers</button>
+                <button class="cheat-tab-btn" data-cheat="operators">Operators</button>
+                <button class="cheat-tab-btn" data-cheat="strings">Strings & Lists</button>
+                <button class="cheat-tab-btn" data-cheat="loops">Loops & Range</button>
+                <button class="cheat-tab-btn" data-cheat="dicts">Dictionaries</button>
+            </div>
+            <div class="drawer-body" id="cheat-card-body">
+                <!-- Dynamic Cheat Content -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: "WHY DID I GET THIS ERROR?" DIAGNOSTIC -->
+    <div id="modal-error-diagnostic" class="modal-overlay">
+        <div class="modal-content diagnostic">
+            <div class="modal-header">
+                <h3>🔍 DEBUG DETECTIVE: ERROR EXPLAINED</h3>
+                <button class="btn-close-modal" id="btn-close-diagnostic">✕</button>
+            </div>
+            <div class="modal-body" id="diagnostic-modal-body">
+                <!-- Visual explanation of error -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cyber primary" id="btn-got-it-diagnostic">I UNDERSTAND, RETRY! 🔄</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 4: TEACHER HOST DASHBOARD -->
+    <div id="modal-teacher-dash" class="modal-overlay">
+        <div class="modal-content teacher-dash">
+            <div class="modal-header">
+                <div>
+                    <h3>📊 HOST & TEACHER CONTROL CENTER</h3>
+                    <span style="font-size:0.75rem; color:var(--neon-green);">⚡ Live Realtime Cloud Sync Active</span>
+                </div>
+                <button class="btn-close-modal" id="btn-close-teacher">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="dash-grid">
+                    <div class="dash-card">
+                        <h4>Active Students Roster & Progress</h4>
+                        <table class="dash-table">
+                            <thead>
+                                <tr>
+                                    <th>Student</th>
+                                    <th>XP</th>
+                                    <th>Level</th>
+                                    <th>Lives</th>
+                                    <th>Mistakes</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="teacher-roster-tbody">
+                                <!-- Live Students Data -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="dash-card">
+                        <h4>Concept Mastery Analysis</h4>
+                        <div class="chart-bars" id="concept-mastery-bars">
+                            <!-- Dynamic Mastery Bars -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STUDENT DETAILED MISTAKE LOG VIEWER -->
+                <div class="dash-card" style="margin-top:16px;">
+                    <h4 id="mistake-log-title">Student Specific Error & Mistake History Log</h4>
+                    <div id="student-mistake-log-list" style="background:#090d16; padding:12px; border-radius:8px; font-family:var(--font-code); font-size:0.8rem; max-height:160px; overflow-y:auto; color:var(--text-main);">
+                        Click on a student's "View Log" button above to inspect their specific errors!
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-export-report" class="btn-cyber outline">📥 EXPORT REPORT (CSV)</button>
+                <button id="btn-reset-data" class="btn-cyber danger text-only">⚠️ RESET ALL CLASS DATA</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 5: HINT OVERLAY -->
+    <div id="modal-hint-overlay" class="modal-overlay">
+        <div class="modal-content hint">
+            <div class="modal-header">
+                <h3>💡 CODE BREAKER HINT SYSTEM</h3>
+                <button class="btn-close-modal" id="btn-close-hint">✕</button>
+            </div>
+            <div class="modal-body" id="hint-modal-body">
+                <!-- Hint tiers -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cyber primary" id="btn-close-hint-ok">GOT IT!</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 6: PROCTOR WARNING OVERLAY -->
+    <div id="modal-proctor-warning" class="modal-overlay">
+        <div class="modal-content warning">
+            <div class="modal-header danger">
+                <h3>⚠️ ANTI-CHEAT PROCTOR WARNING</h3>
+            </div>
+            <div class="modal-body">
+                <div class="warning-icon">🚨</div>
+                <h4>Tab Switch / Window Focus Lost!</h4>
+                <p>Leaving the quest window during challenge mode violates anti-cheat proctoring rules.</p>
+                <div class="proctor-log-box">
+                    Total Tab Switches Detected: <strong id="proctor-switch-count">1</strong><br>
+                    Penalty: <span class="danger-text">-20 XP</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cyber danger" id="btn-proctor-ack">I ACKNOWLEDGE & RETURN TO QUEST</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- App Script -->
+    <script src="app.js"></script>
+</body>
+</html>
