@@ -27,7 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
         pyodide: null,
         pyodideLoading: false,
         mistakeLogs: JSON.parse(localStorage.getItem('pq_mistakes')) || [],
-        realTimeRoster: []
+        realTimeRoster: [],
+        teacherAuthenticated: false
     };
 
     const RANKS = [
@@ -596,6 +597,31 @@ sys.stderr = io.StringIO()
         }
 
         syncStudentData();
+        renderStudentDashLeaderboard();
+    }
+
+    async function renderStudentDashLeaderboard() {
+        const tbody = document.getElementById('student-dash-leaderboard-tbody');
+        if (!tbody) return;
+        let roster = await fetchRealTimeRoster();
+        if (!roster || roster.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:12px; color:var(--text-muted);">No student data active yet. Practice challenges to appear on the leaderboard!</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = roster.slice(0, 5).map((s, idx) => {
+            let isCurrent = (s.name && s.name.toLowerCase() === state.studentName.toLowerCase());
+            let rankBadge = (idx === 0) ? '👑' : (idx === 1 ? '🥇' : (idx === 2 ? '🥈' : (idx === 3 ? '🥉' : `#${idx + 1}`)));
+            return `
+                <tr style="${isCurrent ? 'background:rgba(0,242,254,0.15); font-weight:700; color:var(--neon-cyan);' : ''}">
+                    <td>${rankBadge}</td>
+                    <td>${s.name} ${isCurrent ? '(YOU)' : ''}</td>
+                    <td><strong style="color:var(--neon-yellow);">${s.xp || 0} XP</strong></td>
+                    <td>Zone ${s.level || 1}</td>
+                    <td>${(s.xp || 0) >= 1200 ? '👑 Code Master' : ((s.xp || 0) >= 800 ? '🥇 Hacker' : '🥉 Explorer')}</td>
+                    <td><span style="color:var(--neon-green);">Active (${s.lastActive || 'Live'})</span></td>
+                </tr>
+            `;
+        }).join('');
     }
 
     function switchViewPanel(panelId) {
@@ -627,10 +653,23 @@ sys.stderr = io.StringIO()
         setMissionStage('learn');
     }
 
+    // Normalize output helper to ensure reliable matching despite trailing spaces
+    function normalizeOutput(str) {
+        if (!str) return "";
+        return str.split('\n').map(l => l.trimEnd()).join('\n').trim();
+    }
+
     // Interactive Stepper Nodes
     ['learn', 'play', 'code', 'boss'].forEach(stage => {
         document.getElementById(`step-${stage}`).addEventListener('click', () => {
             AudioEngine.click();
+            if (stage === 'boss') {
+                const nextBtn = document.getElementById('btn-next-stage-code');
+                if (nextBtn && nextBtn.disabled && state.currentStage !== 'boss') {
+                    alert("⚠️ You must run your Python code and get the correct output before proceeding to the Boss stage!");
+                    return;
+                }
+            }
             setMissionStage(stage);
         });
     });
@@ -649,11 +688,27 @@ sys.stderr = io.StringIO()
             document.getElementById('code-mission-title').textContent = lData.code.title;
             document.getElementById('code-mission-desc').innerHTML = `<p>${lData.code.desc}</p>`;
             document.getElementById('code-editor-input').value = lData.code.initialCode;
+            document.getElementById('terminal-console').textContent = 'Click "RUN CODE" to execute program...';
+
+            const nextBtn = document.getElementById('btn-next-stage-code');
+            if (nextBtn) {
+                nextBtn.classList.add('hidden');
+                nextBtn.disabled = true;
+                nextBtn.classList.remove('glowing');
+            }
             updateLineNumbers();
         } else if (stage === 'boss') {
             document.getElementById('boss-challenge-title').textContent = lData.boss.title;
             document.getElementById('boss-mission-desc').innerHTML = `<p>${lData.boss.desc}</p>`;
             document.getElementById('boss-code-editor-input').value = lData.boss.initialCode;
+            document.getElementById('boss-terminal-console').textContent = 'Click "RUN BOSS CODE" to execute program...';
+
+            const nextZoneBtn = document.getElementById('btn-next-zone-boss');
+            if (nextZoneBtn) {
+                nextZoneBtn.classList.add('hidden');
+                nextZoneBtn.disabled = true;
+                nextZoneBtn.classList.remove('glowing');
+            }
             updateBossLineNumbers();
         }
     }
@@ -668,7 +723,15 @@ sys.stderr = io.StringIO()
         lineNumbers.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join('<br>');
     }
     if (codeEditor) {
-        codeEditor.addEventListener('input', updateLineNumbers);
+        codeEditor.addEventListener('input', () => {
+            updateLineNumbers();
+            const nextBtn = document.getElementById('btn-next-stage-code');
+            if (nextBtn) {
+                nextBtn.classList.add('hidden');
+                nextBtn.disabled = true;
+                nextBtn.classList.remove('glowing');
+            }
+        });
         codeEditor.addEventListener('keydown', (e) => {
             if (e.key === 'Tab') {
                 e.preventDefault();
@@ -691,7 +754,15 @@ sys.stderr = io.StringIO()
         bossLineNumbers.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join('<br>');
     }
     if (bossCodeEditor) {
-        bossCodeEditor.addEventListener('input', updateBossLineNumbers);
+        bossCodeEditor.addEventListener('input', () => {
+            updateBossLineNumbers();
+            const nextZoneBtn = document.getElementById('btn-next-zone-boss');
+            if (nextZoneBtn) {
+                nextZoneBtn.classList.add('hidden');
+                nextZoneBtn.disabled = true;
+                nextZoneBtn.classList.remove('glowing');
+            }
+        });
         bossCodeEditor.addEventListener('keydown', (e) => {
             if (e.key === 'Tab') {
                 e.preventDefault();
@@ -744,20 +815,26 @@ sys.stderr = io.StringIO()
         nextBtn.disabled = true;
 
         if (levelId === 1) {
-            document.getElementById('mini-game-title').textContent = "Identifier Scanner & Safe";
-            document.getElementById('mini-game-desc').textContent = "Drag the VALID Python identifier into the Code Safe!";
+            document.getElementById('mini-game-title').textContent = "Zone 1 — Identifier Scanner & Execution Test";
+            document.getElementById('mini-game-desc').textContent = "Drag the VALID Python identifier into the Code Safe and execute python evaluation!";
 
             viewport.innerHTML = `
-                <div class="drag-game-container">
-                    <div class="safe-box" id="safe-dropzone">
-                        <span style="font-size: 2rem;">🔒</span>
-                        <span>DROP VALID IDENTIFIER HERE</span>
+                <div class="drag-game-container" style="flex-direction: column; gap: 16px;">
+                    <div style="display: flex; gap: 20px; align-items: center; justify-content: center; width: 100%;">
+                        <div class="safe-box" id="safe-dropzone" style="flex: 1;">
+                            <span style="font-size: 2rem;">🔒</span>
+                            <span>DROP VALID IDENTIFIER HERE</span>
+                        </div>
+                        <div class="draggable-items" style="flex: 1;">
+                            <div class="drag-item" draggable="true" data-valid="false">2number</div>
+                            <div class="drag-item" draggable="true" data-valid="true">student_name</div>
+                            <div class="drag-item" draggable="true" data-valid="false">class</div>
+                            <div class="drag-item" draggable="true" data-valid="false">student-name</div>
+                        </div>
                     </div>
-                    <div class="draggable-items">
-                        <div class="drag-item" draggable="true" data-valid="false">2number</div>
-                        <div class="drag-item" draggable="true" data-valid="true">student_name</div>
-                        <div class="drag-item" draggable="true" data-valid="false">class</div>
-                        <div class="drag-item" draggable="true" data-valid="false">student-name</div>
+                    <div style="width: 100%; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 12px;">
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Python Execution Console Output:</span>
+                        <pre id="mini-console-1" class="console-box" style="height: 50px; margin-top: 6px;">Output will appear here after drop...</pre>
                     </div>
                 </div>
             `;
@@ -776,7 +853,7 @@ sys.stderr = io.StringIO()
             });
             dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
 
-            dropzone.addEventListener('drop', (e) => {
+            dropzone.addEventListener('drop', async (e) => {
                 e.preventDefault();
                 dropzone.classList.remove('drag-over');
                 const isValid = e.dataTransfer.getData('text/plain') === 'true';
@@ -787,92 +864,200 @@ sys.stderr = io.StringIO()
                     AudioEngine.success();
                     nextBtn.disabled = false;
                     addXP(10, "Cleared Mini-Game");
+                    let code = `${text} = "Anu"\nprint(f"Identifier '${text}' evaluated successfully! Value = {${text}}")`;
+                    await executePythonCode(code, false, 'mini-console-1');
                 } else {
                     dropzone.innerHTML = `<span style="font-size: 2.5rem; color: var(--neon-red);">❌</span><span style="color: var(--neon-red); font-weight:700;">INVALID IDENTIFIER! RETRY</span>`;
                     deductLife(`Selected invalid identifier '${text}'`);
                     AudioEngine.error();
-                    setTimeout(() => renderMiniGame(1), 1500);
+                    document.getElementById('mini-console-1').textContent = `SyntaxError: invalid syntax '${text}' is not a valid Python identifier!`;
+                    document.getElementById('mini-console-1').className = "console-box error";
+                    setTimeout(() => renderMiniGame(1), 2000);
                 }
             });
         } else if (levelId === 2) {
-            document.getElementById('mini-game-title').textContent = "Calculator Reactor";
-            document.getElementById('mini-game-desc').textContent = "Predict the value of 17 % 5 to stabilize the reactor!";
+            document.getElementById('mini-game-title').textContent = "Zone 2 — Calculator Reactor & Operator Output";
+            document.getElementById('mini-game-desc').textContent = "Predict & execute 17 % 5 and floor division to observe output!";
 
             viewport.innerHTML = `
-                <div style="display: flex; flex-direction: column; align-items: center; gap: 16px;">
-                    <div style="font-size: 3rem; animation: floatPulse 1s infinite alternate;">⚡</div>
-                    <h3>What is 17 % 5 in Python?</h3>
-                    <div style="display: flex; gap: 12px;">
-                        <button class="btn-cyber opt-btn" data-ans="3.4">3.4</button>
-                        <button class="btn-cyber opt-btn" data-ans="3">3</button>
-                        <button class="btn-cyber opt-btn" data-ans="2">2</button>
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%;">
+                    <div style="font-size: 2.5rem;">⚡</div>
+                    <h3>Execute Python Operators & Inspect Output:</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
+                        <button class="btn-cyber opt-btn" data-code="print('17 % 5 =', 17 % 5)" data-ans="2">Run 17 % 5</button>
+                        <button class="btn-cyber opt-btn" data-code="print('17 // 5 =', 17 // 5)" data-ans="3">Run 17 // 5</button>
+                        <button class="btn-cyber opt-btn" data-code="print('17 / 5 =', 17 / 5)" data-ans="3.4">Run 17 / 5</button>
+                    </div>
+                    <div style="width: 100%; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 12px; margin-top: 8px;">
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Python Execution Console Output:</span>
+                        <pre id="mini-console-2" class="console-box" style="height: 60px; margin-top: 6px;">Click an operator button to execute code...</pre>
                     </div>
                 </div>
             `;
 
             viewport.querySelectorAll('.opt-btn').forEach(b => {
-                b.addEventListener('click', (e) => {
+                b.addEventListener('click', async (e) => {
+                    let code = e.target.dataset.code;
+                    let res = await executePythonCode(code, false, 'mini-console-2');
                     if (e.target.dataset.ans === "2") {
                         AudioEngine.success();
-                        e.target.style.background = "var(--neon-green)";
-                        e.target.style.color = "#000";
                         nextBtn.disabled = false;
-                        addXP(10, "Reactor Stabilized!");
+                        addXP(10, "Reactor Stabilized Output!");
                     } else {
-                        deductLife(`Selected ${e.target.dataset.ans} for 17%5`);
-                        AudioEngine.error();
-                        e.target.style.background = "var(--neon-red)";
+                        addXP(5, "Tested Operator Output");
+                        nextBtn.disabled = false;
                     }
                 });
             });
         } else if (levelId === 3) {
-            document.getElementById('mini-game-title').textContent = "Index Train Controller";
-            document.getElementById('mini-game-desc').textContent = "Pick passenger at index L[-1] for L = [10, 20, 30, 40, 50]";
+            document.getElementById('mini-game-title').textContent = "Zone 3 — Index Train Controller & Output Slicer";
+            document.getElementById('mini-game-desc').textContent = "Select index operations on L = [10, 20, 30, 40, 50] to see execution output!";
 
             viewport.innerHTML = `
-                <div class="train-container">
-                    <div class="train-car"><span class="train-val">10</span><span class="train-idx">[0]</span></div>
-                    <div class="train-car"><span class="train-val">20</span><span class="train-idx">[1]</span></div>
-                    <div class="train-car"><span class="train-val">30</span><span class="train-idx">[2]</span></div>
-                    <div class="train-car"><span class="train-val">40</span><span class="train-idx">[3]</span></div>
-                    <div class="train-car"><span class="train-val">50</span><span class="train-idx">[4]</span></div>
-                </div>
-                <p>Which value is returned by <code>L[-1]</code>?</p>
-                <div style="display: flex; gap: 12px; margin-top: 10px;">
-                    <button class="btn-cyber opt-btn" data-ans="10">10</button>
-                    <button class="btn-cyber opt-btn" data-ans="50">50</button>
-                    <button class="btn-cyber opt-btn" data-ans="40">40</button>
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%;">
+                    <div class="train-container">
+                        <div class="train-car"><span class="train-val">10</span><span class="train-idx">[0]</span></div>
+                        <div class="train-car"><span class="train-val">20</span><span class="train-idx">[1]</span></div>
+                        <div class="train-car"><span class="train-val">30</span><span class="train-idx">[2]</span></div>
+                        <div class="train-car"><span class="train-val">40</span><span class="train-idx">[3]</span></div>
+                        <div class="train-car"><span class="train-val">50</span><span class="train-idx">[4]</span></div>
+                    </div>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 6px;">
+                        <button class="btn-cyber opt-btn" data-code="L = [10, 20, 30, 40, 50]\nprint('L[-1] ->', L[-1])">Run L[-1]</button>
+                        <button class="btn-cyber opt-btn" data-code="L = [10, 20, 30, 40, 50]\nprint('L[1:4] ->', L[1:4])">Run L[1:4]</button>
+                        <button class="btn-cyber opt-btn" data-code="L = [10, 20, 30, 40, 50]\nL.append(60)\nprint('Updated L ->', L)">Run L.append(60)</button>
+                    </div>
+                    <div style="width: 100%; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 12px;">
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Python Execution Console Output:</span>
+                        <pre id="mini-console-3" class="console-box" style="height: 60px; margin-top: 6px;">Click an indexing option to see output...</pre>
+                    </div>
                 </div>
             `;
 
             viewport.querySelectorAll('.opt-btn').forEach(b => {
-                b.addEventListener('click', (e) => {
-                    if (e.target.dataset.ans === "50") {
-                        AudioEngine.success();
-                        e.target.style.background = "var(--neon-green)";
-                        e.target.style.color = "#000";
-                        nextBtn.disabled = false;
-                        addXP(10, "Train Slicing Cleared!");
-                    } else {
-                        deductLife(`Selected L[${e.target.dataset.ans}] instead of L[-1]`);
-                        AudioEngine.error();
-                        e.target.style.background = "var(--neon-red)";
-                    }
+                b.addEventListener('click', async (e) => {
+                    let code = e.target.dataset.code;
+                    await executePythonCode(code, false, 'mini-console-3');
+                    AudioEngine.success();
+                    nextBtn.disabled = false;
+                    addXP(10, "Slicing Output Cleared!");
                 });
             });
-        } else {
+        } else if (levelId === 4) {
+            document.getElementById('mini-game-title').textContent = "Zone 4 — Loop Forest & Range Execution Engine";
+            document.getElementById('mini-game-desc').textContent = "Select range() parameters and run python loops to observe line-by-line output!";
+
             viewport.innerHTML = `
-                <div style="display: flex; flex-direction: column; align-items: center; gap: 14px;">
-                    <span style="font-size: 3rem;">🎮</span>
-                    <h3>Zone ${levelId} Concept Check</h3>
-                    <p>Click "VERIFY" to validate your readiness for coding!</p>
-                    <button id="btn-generic-verify" class="btn-cyber primary">VERIFY READINESS</button>
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%;">
+                    <div style="font-size: 2.5rem;">🌲</div>
+                    <h3>Run Loop Statements & View Output:</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
+                        <button class="btn-cyber opt-btn" data-code="for i in range(1, 6):\n    print(f'Count: {i}')">range(1, 6)</button>
+                        <button class="btn-cyber opt-btn" data-code="for i in range(2, 11, 2):\n    print(f'Even: {i}')">range(2, 11, 2)</button>
+                        <button class="btn-cyber opt-btn" data-code="for i in range(5, 0, -1):\n    print(f'Countdown: {i}')">range(5, 0, -1)</button>
+                    </div>
+                    <div style="width: 100%; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 12px;">
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Python Execution Console Output:</span>
+                        <pre id="mini-console-4" class="console-box" style="height: 70px; margin-top: 6px;">Click a loop option to execute and view output...</pre>
+                    </div>
                 </div>
             `;
-            document.getElementById('btn-generic-verify').addEventListener('click', () => {
-                AudioEngine.success();
-                nextBtn.disabled = false;
-                addXP(10, "Readiness Verified!");
+
+            viewport.querySelectorAll('.opt-btn').forEach(b => {
+                b.addEventListener('click', async (e) => {
+                    let code = e.target.dataset.code;
+                    await executePythonCode(code, false, 'mini-console-4');
+                    AudioEngine.success();
+                    nextBtn.disabled = false;
+                    addXP(10, "Loop Output Executed!");
+                });
+            });
+        } else if (levelId === 5) {
+            document.getElementById('mini-game-title').textContent = "Zone 5 — Decision Dungeon Branch Evaluator";
+            document.getElementById('mini-game-desc').textContent = "Test conditional logic checks and view decision branch output!";
+
+            viewport.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%;">
+                    <div style="font-size: 2.5rem;">⚔️</div>
+                    <h3>Test Conditional Expressions:</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
+                        <button class="btn-cyber opt-btn" data-code="num = 15\nif num % 2 == 0:\n    print('EVEN')\nelse:\n    print('ODD')">Test 15 % 2</button>
+                        <button class="btn-cyber opt-btn" data-code="a = 45; b = 72; c = 31\nprint('Largest is:', max(a, b, c))">Find Largest (45, 72, 31)</button>
+                        <button class="btn-cyber opt-btn" data-code="mark = 85\nprint('GRADE A' if mark >= 80 else 'GRADE B')">Test Mark 85</button>
+                    </div>
+                    <div style="width: 100%; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 12px;">
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Python Execution Console Output:</span>
+                        <pre id="mini-console-5" class="console-box" style="height: 70px; margin-top: 6px;">Click a condition to evaluate output...</pre>
+                    </div>
+                </div>
+            `;
+
+            viewport.querySelectorAll('.opt-btn').forEach(b => {
+                b.addEventListener('click', async (e) => {
+                    let code = e.target.dataset.code;
+                    await executePythonCode(code, false, 'mini-console-5');
+                    AudioEngine.success();
+                    nextBtn.disabled = false;
+                    addXP(10, "Decision Branch Cleared!");
+                });
+            });
+        } else if (levelId === 6) {
+            document.getElementById('mini-game-title').textContent = "Zone 6 — Dictionary Vault CRUD Inspector";
+            document.getElementById('mini-game-desc').textContent = "Run dictionary operations and view key-value stdout!";
+
+            viewport.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%;">
+                    <div style="font-size: 2.5rem;">🗝️</div>
+                    <h3>Execute Dictionary Operations:</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
+                        <button class="btn-cyber opt-btn" data-code="student = {'name': 'Anu', 'mark': 95}\nstudent['city'] = 'Chennai'\nprint(student)">Add Key ['city']</button>
+                        <button class="btn-cyber opt-btn" data-code="marks = {'Math': 90, 'CS': 95, 'Physics': 85}\nprint('Keys:', list(marks.keys()))\nprint('Total Sum:', sum(marks.values()))">Sum Values</button>
+                        <button class="btn-cyber opt-btn" data-code="d = {'A': 10, 'B': 20}\nval = d.pop('A')\nprint(f'Popped {val}, Dict = {d}')">pop('A')</button>
+                    </div>
+                    <div style="width: 100%; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 12px;">
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Python Execution Console Output:</span>
+                        <pre id="mini-console-6" class="console-box" style="height: 70px; margin-top: 6px;">Click a dictionary operation to view output...</pre>
+                    </div>
+                </div>
+            `;
+
+            viewport.querySelectorAll('.opt-btn').forEach(b => {
+                b.addEventListener('click', async (e) => {
+                    let code = e.target.dataset.code;
+                    await executePythonCode(code, false, 'mini-console-6');
+                    AudioEngine.success();
+                    nextBtn.disabled = false;
+                    addXP(10, "Dictionary Output Verified!");
+                });
+            });
+        } else if (levelId === 7) {
+            document.getElementById('mini-game-title').textContent = "Zone 7 — Hacker Algorithm Visualizer";
+            document.getElementById('mini-game-desc').textContent = "Run multi-step algorithms to verify output execution!";
+
+            viewport.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%;">
+                    <div style="font-size: 2.5rem;">💻</div>
+                    <h3>Run Algorithm Logic:</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
+                        <button class="btn-cyber opt-btn" data-code="s = 'PROGRAMMING'\nvowels = [ch for ch in s if ch.lower() in 'aeiou']\nprint(f'Vowels found: {vowels} (Count = {len(vowels)})')">Count Vowels in 'PROGRAMMING'</button>
+                        <button class="btn-cyber opt-btn" data-code="L = [45, 12, 89, 34]\nlargest = L[0]\nfor x in L:\n    if x > largest: largest = x\nprint('Max in L:', largest)">Find Max without max()</button>
+                        <button class="btn-cyber opt-btn" data-code="text = 'PYTHON QUEST'\nprint('Reversed:', text[::-1])">Reverse String</button>
+                    </div>
+                    <div style="width: 100%; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 12px;">
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Python Execution Console Output:</span>
+                        <pre id="mini-console-7" class="console-box" style="height: 70px; margin-top: 6px;">Click an algorithm to execute output...</pre>
+                    </div>
+                </div>
+            `;
+
+            viewport.querySelectorAll('.opt-btn').forEach(b => {
+                b.addEventListener('click', async (e) => {
+                    let code = e.target.dataset.code;
+                    await executePythonCode(code, false, 'mini-console-7');
+                    AudioEngine.success();
+                    nextBtn.disabled = false;
+                    addXP(10, "Algorithm Execution Cleared!");
+                });
             });
         }
     }
@@ -885,6 +1070,15 @@ sys.stderr = io.StringIO()
         await renderLeaderboard();
         document.getElementById('modal-leaderboard').classList.add('active');
     });
+
+    const fullLdBtn = document.getElementById('btn-view-full-leaderboard');
+    if (fullLdBtn) {
+        fullLdBtn.addEventListener('click', async () => {
+            AudioEngine.click();
+            await renderLeaderboard();
+            document.getElementById('modal-leaderboard').classList.add('active');
+        });
+    }
 
     document.getElementById('btn-close-leaderboard').addEventListener('click', () => {
         document.getElementById('modal-leaderboard').classList.remove('active');
@@ -920,11 +1114,64 @@ sys.stderr = io.StringIO()
         }).join('');
     }
 
+    // TEACHER DASHBOARD PIN 0626 AUTHENTICATION LOGIC
+    const teacherPinModal = document.getElementById('modal-teacher-pin');
+    const teacherPinInput = document.getElementById('teacher-pin-input');
+    const teacherPinError = document.getElementById('teacher-pin-error');
+
     document.getElementById('btn-teacher-dash').addEventListener('click', async () => {
         AudioEngine.click();
-        await renderTeacherDashboard();
-        document.getElementById('modal-teacher-dash').classList.add('active');
+        if (state.teacherAuthenticated) {
+            await renderTeacherDashboard();
+            document.getElementById('modal-teacher-dash').classList.add('active');
+        } else {
+            if (teacherPinInput) teacherPinInput.value = '';
+            if (teacherPinError) teacherPinError.textContent = '';
+            if (teacherPinModal) teacherPinModal.classList.add('active');
+            setTimeout(() => { if (teacherPinInput) teacherPinInput.focus(); }, 100);
+        }
     });
+
+    function verifyTeacherPin() {
+        if (!teacherPinInput) return;
+        const pin = teacherPinInput.value.trim();
+        if (pin === '0626') {
+            state.teacherAuthenticated = true;
+            teacherPinModal.classList.remove('active');
+            AudioEngine.success();
+            renderTeacherDashboard();
+            document.getElementById('modal-teacher-dash').classList.add('active');
+        } else {
+            AudioEngine.error();
+            if (teacherPinError) teacherPinError.textContent = '❌ Access Denied: Incorrect PIN! (Teacher PIN: 0626)';
+            teacherPinInput.value = '';
+            teacherPinInput.focus();
+        }
+    }
+
+    const submitPinBtn = document.getElementById('btn-submit-teacher-pin');
+    if (submitPinBtn) submitPinBtn.addEventListener('click', verifyTeacherPin);
+    if (teacherPinInput) {
+        teacherPinInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') verifyTeacherPin();
+        });
+    }
+
+    const closePinBtn = document.getElementById('btn-close-teacher-pin');
+    if (closePinBtn) {
+        closePinBtn.addEventListener('click', () => {
+            if (teacherPinModal) teacherPinModal.classList.remove('active');
+        });
+    }
+
+    const lockTeacherBtn = document.getElementById('btn-lock-teacher');
+    if (lockTeacherBtn) {
+        lockTeacherBtn.addEventListener('click', () => {
+            state.teacherAuthenticated = false;
+            document.getElementById('modal-teacher-dash').classList.remove('active');
+            AudioEngine.click();
+        });
+    }
 
     document.getElementById('btn-close-teacher').addEventListener('click', () => {
         document.getElementById('modal-teacher-dash').classList.remove('active');
@@ -1042,28 +1289,28 @@ sys.stderr = io.StringIO()
     });
 
     // ----------------------------------------------------------------------
-    // 11. EXAM ARENA ENGINE (LEVEL 8)
+    // 11. EXAM ARENA ENGINE (LEVEL 8 - CONCEPT PRACTICE ARENA)
     // ----------------------------------------------------------------------
     const EXAM_QUESTIONS = {
         A: [
-            { q: "1. Which of the following is a valid Python identifier?", opts: ["2count", "student_name", "class", "student-name"], ans: 1 },
-            { q: "2. What is the output of 17 // 5 in Python?", opts: ["3.4", "3", "2", "3.0"], ans: 1 },
-            { q: "3. Which data type is immutable?", opts: ["List", "Dictionary", "String", "Set"], ans: 2 },
-            { q: "4. What does L.append(20) do?", opts: ["Adds 20 to start", "Adds 20 to end", "Replaces index 20", "Deletes 20"], ans: 1 },
-            { q: "5. What is the result of 'PYTHON'[2]?", opts: ["P", "Y", "T", "H"], ans: 2 }
+            { q: "1. Which of the following is a VALID Python variable identifier?", opts: ["1st_score", "student_total", "global", "roll-no"], ans: 1 },
+            { q: "2. What is the output of 25 // 4 in Python?", opts: ["6.25", "6", "1", "6.0"], ans: 1 },
+            { q: "3. Which of the following data types is IMMUTABLE in Python?", opts: ["List", "Dictionary", "Tuple", "Set"], ans: 2 },
+            { q: "4. What operation does list_data.append(45) perform?", opts: ["Adds 45 at beginning", "Appends 45 at end", "Replaces element 45", "Removes 45"], ans: 1 },
+            { q: "5. What is the result of 'CYBERNETICS'[4]?", opts: ["C", "R", "N", "E"], ans: 1 }
         ],
         B: [
-            { q: "6. Predict output of: for i in range(1, 4): print(i, end=' ')", opts: ["1 2 3", "1 2 3 4", "0 1 2 3", "1 4"], ans: 0 },
-            { q: "7. Predict output of: len([10, 20, 30])", opts: ["2", "3", "4", "30"], ans: 1 }
+            { q: "6. Predict the output of: for val in range(2, 8, 2): print(val, end=' ')", opts: ["2 4 6", "2 4 6 8", "2 3 4 5 6 7", "4 6 8"], ans: 0 },
+            { q: "7. What is the result of len({'A': 10, 'B': 20, 'C': 30})?", opts: ["6", "3", "30", "10"], ans: 1 }
         ],
         C: [
-            { q: "8. Identify error in: student = {'name':'Arun'}; print(student['mark'])", opts: ["SyntaxError", "KeyError", "IndexError", "TypeError"], ans: 1 }
+            { q: "8. Identify error type: profile = {'user':'Priya'}; print(profile['age'])", opts: ["SyntaxError", "KeyError", "IndexError", "TypeError"], ans: 1 }
         ],
         D: [
-            { q: "9. Command to remove key 'age' from dict 'd':", opts: ["d.remove('age')", "del d['age']", "d.pop()", "delete d['age']"], ans: 1 }
+            { q: "9. Correct statement to remove key 'salary' from dictionary 'employee':", opts: ["employee.delete('salary')", "del employee['salary']", "employee.popitem('salary')", "remove employee['salary']"], ans: 1 }
         ],
         E: [
-            { q: "10. Write code to compute total of marks = {'Math': 90, 'CS': 95}", codeRequired: true, expectedOutput: "185" }
+            { q: "10. Write Python code to compute and print the total of marks = {'Physics': 88, 'Chemistry': 92}", codeRequired: true, expectedOutput: "180" }
         ]
     };
 
@@ -1092,30 +1339,37 @@ sys.stderr = io.StringIO()
         const container = document.getElementById('exam-room-container');
         const qList = EXAM_QUESTIONS[roomKey] || [];
 
-        container.innerHTML = `<h3>ROOM ${roomKey} QUESTIONS</h3>`;
+        container.innerHTML = `<h3>ROOM ${roomKey} CONCEPT PRACTICE CHALLENGES</h3>`;
 
         qList.forEach((qObj, idx) => {
             let card = document.createElement('div');
             card.className = "exam-question-card";
 
             if (qObj.codeRequired) {
+                let consoleId = `exam-console-${roomKey}-${idx}`;
                 card.innerHTML = `
                     <p><strong>${qObj.q}</strong></p>
-                    <textarea class="exam-code-input" style="width: 100%; height: 80px; background:#090d16; color:var(--neon-green); font-family:var(--font-code); padding:10px;" placeholder="Type Python code here..."></textarea>
-                    <button class="btn-cyber primary small btn-run-exam-code">Run & Submit Code</button>
+                    <textarea class="exam-code-input" style="width: 100%; height: 85px; background:#090d16; color:var(--neon-green); font-family:var(--font-code); padding:10px;" placeholder="Type Python code here...\ne.g. marks = {'Physics': 88, 'Chemistry': 92}\nprint(sum(marks.values()))"></textarea>
+                    <div style="display: flex; gap: 10px; align-items: center; margin-top: 8px;">
+                        <button class="btn-cyber primary small btn-run-exam-code">Run & Submit Code ⚡</button>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <span style="font-size: 0.75rem; color: var(--text-muted);">Python Terminal Output:</span>
+                        <pre id="${consoleId}" class="console-box" style="height: 50px; margin-top: 4px;">Click 'Run & Submit Code' to view execution output...</pre>
+                    </div>
                 `;
                 card.querySelector('.btn-run-exam-code').addEventListener('click', async () => {
                     let userCode = card.querySelector('.exam-code-input').value;
-                    let res = await executePythonCode(userCode);
+                    let res = await executePythonCode(userCode, false, consoleId);
                     if (res.success && res.output.trim() === qObj.expectedOutput) {
                         AudioEngine.success();
                         state.examScore += 20;
                         document.getElementById('exam-score-display').textContent = state.examScore;
-                        alert("Correct Boss Code! +20 Marks");
+                        card.style.borderColor = "var(--neon-green)";
                     } else {
                         deductLife("Failed Exam Arena Code Question");
                         AudioEngine.error();
-                        alert("Incorrect output. Expected: " + qObj.expectedOutput);
+                        card.style.borderColor = "var(--neon-pink)";
                     }
                 });
             } else {
@@ -1135,9 +1389,12 @@ sys.stderr = io.StringIO()
                             AudioEngine.success();
                             state.examScore += 10;
                             document.getElementById('exam-score-display').textContent = state.examScore;
+                            optEl.style.background = "var(--neon-green)";
+                            optEl.style.color = "#000";
                         } else {
                             deductLife(`Exam Arena MCQ Wrong Choice: ${optEl.textContent}`);
                             AudioEngine.error();
+                            optEl.style.background = "var(--neon-pink)";
                         }
                     });
                 });
@@ -1275,13 +1532,22 @@ sys.stderr = io.StringIO()
         let lData = LEVELS_DATA[state.currentLevel];
 
         let result = await executePythonCode(code, false);
+        const nextBtn = document.getElementById('btn-next-stage-code');
 
-        if (result.success && result.output.trim() === lData.code.expectedOutput.trim()) {
+        if (result.success && normalizeOutput(result.output) === normalizeOutput(lData.code.expectedOutput)) {
             addXP(30, "Coding Mission Complete!");
             AudioEngine.success();
-            const nextBtn = document.getElementById('btn-next-stage-code');
-            nextBtn.classList.remove('hidden');
-            nextBtn.classList.add('glowing');
+            if (nextBtn) {
+                nextBtn.classList.remove('hidden');
+                nextBtn.disabled = false;
+                nextBtn.classList.add('glowing');
+            }
+        } else {
+            if (nextBtn) {
+                nextBtn.classList.add('hidden');
+                nextBtn.disabled = true;
+                nextBtn.classList.remove('glowing');
+            }
         }
     });
 
@@ -1298,17 +1564,29 @@ sys.stderr = io.StringIO()
         let lData = LEVELS_DATA[state.currentLevel];
 
         let result = await executePythonCode(code, true);
+        const nextZoneBtn = document.getElementById('btn-next-zone-boss');
 
-        if (result.success && result.output.trim() === lData.boss.expectedOutput.trim()) {
+        if (result.success && normalizeOutput(result.output) === normalizeOutput(lData.boss.expectedOutput)) {
             addXP(100, "Zone Boss Defeated!");
             AudioEngine.success();
 
-            const nextZoneBtn = document.getElementById('btn-next-zone-boss');
-            nextZoneBtn.classList.remove('hidden');
-            nextZoneBtn.classList.add('glowing');
+            state.unlockedLevel = Math.max(state.unlockedLevel, state.currentLevel + 1);
+            updateUIState();
+
+            if (nextZoneBtn) {
+                nextZoneBtn.classList.remove('hidden');
+                nextZoneBtn.disabled = false;
+                nextZoneBtn.classList.add('glowing');
+            }
 
             // Open Mock Sandbox Playground for students to experiment
             openMockPracticeSandbox();
+        } else {
+            if (nextZoneBtn) {
+                nextZoneBtn.classList.add('hidden');
+                nextZoneBtn.disabled = true;
+                nextZoneBtn.classList.remove('glowing');
+            }
         }
     });
 

@@ -111,6 +111,34 @@
                         </div>
                     </div>
 
+                    <!-- STUDENT DASHBOARD LIVE LEADERBOARD CARD -->
+                    <div class="dash-card" style="margin-bottom: 24px; background: rgba(14, 20, 36, 0.8); border: 1px solid var(--neon-cyan); border-radius: 16px; padding: 20px; box-shadow: 0 0 20px rgba(0, 242, 254, 0.15);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 10px;">
+                            <div>
+                                <h3 style="margin: 0; font-size: 1.1rem; color: var(--neon-cyan); font-family: var(--font-display);">🏆 CLASSROOM LEADERBOARD — LIVE RANKINGS</h3>
+                                <span style="font-size: 0.75rem; color: var(--neon-green);">⚡ Real-Time Active Competitors Roster</span>
+                            </div>
+                            <button id="btn-view-full-leaderboard" class="btn-cyber small outline">FULL LEADERBOARD ➡️</button>
+                        </div>
+                        <div style="overflow-x: auto;">
+                            <table class="dash-table">
+                                <thead>
+                                    <tr>
+                                        <th>Rank</th>
+                                        <th>Student</th>
+                                        <th>XP</th>
+                                        <th>Zone Reached</th>
+                                        <th>Title</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="student-dash-leaderboard-tbody">
+                                    <!-- Live Top Students Roster -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                     <div class="curriculum-overview">
                         <h3>8 LEVEL ROADMAP</h3>
                         <div class="roadmap-grid" id="roadmap-grid">
@@ -231,8 +259,8 @@
                                         ▶ RUN CODE
                                     </button>
 
-                                    <!-- PROCEED TO BOSS BUTTON -->
-                                    <button id="btn-next-stage-code" class="btn-cyber green-glowing large">
+                                    <!-- PROCEED TO BOSS BUTTON (UNLOCKED ONLY ON CORRECT CODE OUTPUT) -->
+                                    <button id="btn-next-stage-code" class="btn-cyber green-glowing large hidden" disabled>
                                         PROCEED TO BOSS 👹 →
                                     </button>
 
@@ -286,8 +314,8 @@
                                         ▶ RUN BOSS CODE
                                     </button>
 
-                                    <!-- NEXT LEVEL BUTTON ON BOSS CLEAR -->
-                                    <button id="btn-next-zone-boss" class="btn-cyber green-glowing large hidden">
+                                    <!-- NEXT LEVEL BUTTON ON BOSS CLEAR (UNLOCKED ONLY ON CORRECT BOSS OUTPUT) -->
+                                    <button id="btn-next-zone-boss" class="btn-cyber green-glowing large hidden" disabled>
                                         🎉 ZONE CLEARED! ADVANCE TO NEXT LEVEL ➡️ →
                                     </button>
                                 </div>
@@ -483,15 +511,40 @@
         </div>
     </div>
 
+    <!-- MODAL 3.5: TEACHER PIN AUTHENTICATION MODAL -->
+    <div id="modal-teacher-pin" class="modal-overlay">
+        <div class="modal-content login-modal" style="width: 440px; border: 2px solid var(--neon-cyan); box-shadow: 0 0 35px rgba(0, 242, 254, 0.4);">
+            <div class="modal-header">
+                <h3>🔒 TEACHER AUTHENTICATION</h3>
+                <button class="btn-close-modal" id="btn-close-teacher-pin">✕</button>
+            </div>
+            <div class="modal-body align-center" style="padding: 28px 24px;">
+                <div class="cyber-avatar">🔑</div>
+                <h4 style="margin: 0; color: var(--neon-cyan);">Enter Teacher Security PIN</h4>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin: 4px 0 12px 0;">Teacher Dashboard is PIN protected (PIN: 0626)</p>
+                
+                <input type="password" id="teacher-pin-input" maxlength="4" placeholder="••••" style="font-size: 2rem; letter-spacing: 12px; text-align: center; width: 180px; padding: 10px; background: #090d16; color: var(--neon-cyan); border: 2px solid var(--neon-cyan); border-radius: 10px; font-family: var(--font-code); outline: none;">
+                
+                <div id="teacher-pin-error" style="color: var(--neon-pink); font-size: 0.85rem; font-weight: bold; min-height: 20px; margin-top: 8px;"></div>
+            </div>
+            <div class="modal-footer flex-center">
+                <button id="btn-submit-teacher-pin" class="btn-cyber primary glowing large" style="width: 100%;">UNLOCK TEACHER DASHBOARD 🔓</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL 4: TEACHER HOST DASHBOARD -->
     <div id="modal-teacher-dash" class="modal-overlay">
         <div class="modal-content teacher-dash">
             <div class="modal-header">
                 <div>
                     <h3>📊 HOST & TEACHER CONTROL CENTER</h3>
-                    <span style="font-size:0.75rem; color:var(--neon-green);">⚡ Live Realtime Cloud Sync Active (No Fake Data)</span>
+                    <span style="font-size:0.75rem; color:var(--neon-green);">⚡ Live Realtime Cloud Sync Active (Protected with PIN 0626)</span>
                 </div>
-                <button class="btn-close-modal" id="btn-close-teacher">✕</button>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button id="btn-lock-teacher" class="btn-cyber small outline" style="border-color: var(--neon-pink); color: var(--neon-pink);" title="Lock Dashboard">🔒 LOCK</button>
+                    <button class="btn-close-modal" id="btn-close-teacher">✕</button>
+                </div>
             </div>
             <div class="modal-body">
                 <div class="dash-grid">
